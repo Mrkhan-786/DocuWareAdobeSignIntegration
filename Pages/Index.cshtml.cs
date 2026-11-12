@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using DocuWareAdobeSignIntegration.Data;
+using System.Linq;
 
 namespace DocuWareAdobeSignIntegration.Pages;
 
@@ -23,6 +24,20 @@ public class IndexModel : PageModel
 
     public void OnGet()
     {
+        if (!DocumentStore.Documents.Any())
+        {
+            DocumentStore.Documents.Add(
+                new ActivityItem(
+                    "Test Document.pdf",
+                    "Shaahid Khan",
+                    "shaahid@example.com",
+                    "Awaiting Signature",
+                    "warning",
+                    DateTime.Now,
+                    1,
+                    "Signed"));
+        }
+
         RecentActivity = DocumentStore.Documents
             .OrderByDescending(x => x.SentAt)
             .ToList();
