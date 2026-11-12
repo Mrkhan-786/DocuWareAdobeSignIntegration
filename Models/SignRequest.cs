@@ -1,4 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace DocuWareAdobeSignIntegration.Models;
 
@@ -25,7 +27,13 @@ public class SignRequest
 
     public string ProjectName { get; set; } = string.Empty;
 
+    // These are integration-managed values.
+    // They are excluded from incoming JSON so a workflow
+    // caller cannot supply or overwrite them.
+
+    [JsonIgnore]
     public string AdobeAgreementId { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string Status { get; set; } = string.Empty;
 }

@@ -1,10 +1,8 @@
-﻿using System.Text.Json;
+﻿
+using System.Text.Json;
 using DocuWareAdobeSignIntegration.Models;
 using DocuWareAdobeSignIntegration.Services;
-using DocuWareAdobeSignIntegration.Data;
-using DocuWareAdobeSignIntegration.Pages;
 using Microsoft.AspNetCore.Mvc;
-
 
 namespace DocuWareAdobeSignIntegration.Controllers;
 
@@ -16,17 +14,20 @@ public class AdobeSignController : ControllerBase
     private readonly AdobeAuthService _authService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AdobeSignController> _logger;
+    private readonly IWebHostEnvironment _environment;
 
     public AdobeSignController(
         AdobeAgreementService agreementService,
         AdobeAuthService authService,
         IConfiguration configuration,
-        ILogger<AdobeSignController> logger)
+        ILogger<AdobeSignController> logger,
+        IWebHostEnvironment environment)
     {
         _agreementService = agreementService;
         _authService = authService;
         _configuration = configuration;
         _logger = logger;
+        _environment = environment;
     }
 
     // =====================================================
@@ -58,56 +59,81 @@ public class AdobeSignController : ControllerBase
     }
 
     // =====================================================
-    // STEP 1
-    // Generate Adobe Authorization URL
+    // STEP 1: GENERATE ADOBE AUTHORIZATION URL
     // =====================================================
 
     [HttpGet("authorize")]
     public IActionResult GetAuthorizationUrl()
     {
-        var clientId =
-            _configuration["AdobeSign:ClientId"];
+        var clientId = _configuration["AdobeSign:ClientId"];
+        var redirectUri = _configuration["AdobeSign:RedirectUri"];
 
-        var redirectUri =
-            _configuration["AdobeSign:RedirectUri"];
+        if (string.IsNullOrWhiteSpace(clientId) ||
+            string.IsNullOrWhiteSpace(redirectUri))
+        {
+            _logger.LogError(
+                "Adobe ClientId or RedirectUri is not configured.");
+
+            return StatusCode(500, new
+            {
+                Success = false,
+                Message = "Adobe ClientId or RedirectUri is not configured."
+            });
+        }
+
+        var scope =
+            "user_login:self agreement_read:account " +
+            "agreement_write:account agreement_send:account";
 
         var authUrl =
-            $"https://secure.na3.adobesign.com/public/oauth/v2" +
-            $"?response_type=code" +
-            $"&client_id={clientId}" +
-            $"&redirect_uri={Uri.EscapeDataString(redirectUri!)}" +
-            $"&scope=user_login:self agreement_read:account agreement_write:account agreement_send:account";
+            "https://secure.na3.adobesign.com/public/oauth/v2" +
+            "?response_type=code" +
+            $"&client_id={Uri.EscapeDataString(clientId)}" +
+            $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+            $"&scope={Uri.EscapeDataString(scope)}";
 
         return Ok(new
         {
+            Success = true,
             AuthorizationUrl = authUrl
         });
     }
 
     // =====================================================
-    // STEP 2
-    // Adobe OAuth Callback
+    // STEP 2: ADOBE OAUTH CALLBACK
     // =====================================================
 
     [HttpGet("callback")]
     public async Task<IActionResult> OAuthCallback(
-        string code)
+        [FromQuery] string? code)
     {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return BadRequest(new
+            {
+                Success = false,
+                Message = "Adobe authorization code is missing."
+            });
+        }
+
         try
         {
             _logger.LogInformation(
-                "Adobe authorization code received.");
+                "Adobe authorization callback received.");
 
-            var token =
-                await _authService
-                    .ExchangeCodeForTokenAsync(code);
+            var token = await _authService
+                .ExchangeCodeForTokenAsync(code);
+
+            // Access and refresh tokens must never be returned
+            // in this API response.
+
+            _logger.LogInformation(
+                "Adobe authentication completed.");
 
             return Ok(new
             {
                 Success = true,
                 Message = "Adobe authentication successful.",
-                AccessToken = token.AccessToken,
-                RefreshToken = token.RefreshToken,
                 TokenType = token.TokenType,
                 ExpiresIn = token.ExpiresIn
             });
@@ -121,29 +147,59 @@ public class AdobeSignController : ControllerBase
             return BadRequest(new
             {
                 Success = false,
-                Error = ex.Message
+                Message = "Adobe authentication failed."
             });
         }
     }
 
     // =====================================================
-    // STEP 3
-    // Adobe Base URI
+    // STEP 3: ADOBE BASE URI
+    //
+    // Supply the token using:
+    // Authorization: Bearer YOUR_ACCESS_TOKEN
+    //
+    // This avoids exposing the token in the URL.
     // =====================================================
 
     [HttpGet("baseuri")]
     public async Task<IActionResult> GetBaseUri(
-        string accessToken)
+        [FromHeader(Name = "Authorization")]
+        string? authorizationHeader)
     {
+        const string bearerPrefix = "Bearer ";
+
+        if (string.IsNullOrWhiteSpace(authorizationHeader) ||
+            !authorizationHeader.StartsWith(
+                bearerPrefix,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Unauthorized(new
+            {
+                Success = false,
+                Message = "A Bearer access token is required in the Authorization header."
+            });
+        }
+
+        var accessToken = authorizationHeader[
+            bearerPrefix.Length..].Trim();
+
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return Unauthorized(new
+            {
+                Success = false,
+                Message = "The access token is missing."
+            });
+        }
+
         try
         {
-            var result =
-                await _authService
-                    .GetBaseUriAsync(accessToken);
+            var result = await _authService
+                .GetBaseUriAsync(accessToken);
 
-            return Ok(
-                JsonDocument.Parse(result)
-                .RootElement);
+            using var jsonDocument = JsonDocument.Parse(result);
+
+            return Ok(jsonDocument.RootElement.Clone());
         }
         catch (Exception ex)
         {
@@ -154,29 +210,55 @@ public class AdobeSignController : ControllerBase
             return BadRequest(new
             {
                 Success = false,
-                Error = ex.Message
+                Message = "Unable to retrieve Adobe Base URI."
             });
         }
     }
 
     // =====================================================
-    // STEP 4
-    // Upload PDF To Adobe
+    // STEP 4: UPLOAD PDF TO ADOBE
+    // DEVELOPMENT TEST ONLY
     // =====================================================
 
     [HttpGet("uploadtest")]
     public async Task<IActionResult> UploadTest()
     {
+        if (!_environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         try
         {
-            string accessToken =
-                "3AAABLblqZhAu7PbUURPBuqK7vaf5SWrBykCN0hVARvFu_r0eI-sFL4Yn15DTlhYr1KSLdbGMGJ8sN1S81Ab60Ynx79hAAa8f";
+            var accessToken =
+                _configuration["AdobeSign:TestAccessToken"];
 
-            var transientDocumentId =
-                await _agreementService
-                    .UploadTransientDocumentAsync(
-                        accessToken,
-                        @"C:\Windows\Temp\Adobe Sign Request Form.pdf");
+            var pdfPath =
+                _configuration["AdobeSign:TestPdfPath"];
+
+            if (string.IsNullOrWhiteSpace(accessToken) ||
+                string.IsNullOrWhiteSpace(pdfPath))
+            {
+                return BadRequest(new
+                {
+                    Success = false,
+                    Message = "Adobe test access token or PDF path is not configured."
+                });
+            }
+
+            if (!System.IO.File.Exists(pdfPath))
+            {
+                return BadRequest(new
+                {
+                    Success = false,
+                    Message = "The configured test PDF could not be found."
+                });
+            }
+
+            var transientDocumentId = await _agreementService
+                .UploadTransientDocumentAsync(
+                    accessToken,
+                    pdfPath);
 
             return Ok(new
             {
@@ -191,36 +273,54 @@ public class AdobeSignController : ControllerBase
                 ex,
                 "Adobe upload test failed.");
 
-            return BadRequest(new
+            return StatusCode(500, new
             {
                 Success = false,
-                Error = ex.Message
+                Message = "Adobe document upload test failed."
             });
         }
     }
 
     // =====================================================
-    // STEP 5
-    // Create Adobe Agreement
+    // STEP 5: CREATE ADOBE AGREEMENT
+    // DEVELOPMENT TEST ONLY
     // =====================================================
 
     [HttpGet("createagreementtest")]
     public async Task<IActionResult> CreateAgreementTest()
     {
+        if (!_environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
         try
         {
-            string accessToken =
-                "3AAABLblqZhAu7PbUURPBuqK7vaf5SWrBykCN0hVARvFu_r0eI-sFL4Yn15DTlhYr1KSLdbGMGJ8sN1S81Ab60Ynx79hAAa8f";
+            var accessToken =
+                _configuration["AdobeSign:TestAccessToken"];
 
-            string transientDocumentId =
-                "CBSCTBABDUAAABACAABAAxLt0cMnwO82mOeUcj7OQ_DkG-mK2Fp8nnRlTfdg-WwQ86vFzqlsDgeH5vl08h7wX2wNm8Hc2MWDHRQurBqgPgxEkuzoUvL99LQh3gFc-tyJMDeHParlGJJDfsuFETHB5TBB_Frz3NLolia4dohrFVX0jF4CSFbVcLoPn7D92KkUtkEzK9Q_M8C0VCdtuSFqp8ZLd9adCQ8hUV-FBqcAcM7LlMhN7ORK5bMj5XT4TSVpB88eNFeYsBjZpvlOYB-jNIaTynt-I4C5hhQnuVGzaO8KKMz0BKP-3D-YBmCBWj9J_v4p46WN6nmOjHMO7ZODTqyTo0qzt60IQu6vtzr_pxEJga82NEquZeP49dga6DRB9zB10Oy4oSQHd6o3V40OA";
+            var transientDocumentId =
+                _configuration["AdobeSign:TestTransientDocumentId"];
 
-            var agreementId =
-                await _agreementService
-                    .CreateAdobeAgreementAsync(
-                        accessToken,
-                        transientDocumentId,
-                        "thomas.rain@flyingtom.com");
+            var recipientEmail =
+                _configuration["AdobeSign:TestRecipientEmail"];
+
+            if (string.IsNullOrWhiteSpace(accessToken) ||
+                string.IsNullOrWhiteSpace(transientDocumentId) ||
+                string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                return BadRequest(new
+                {
+                    Success = false,
+                    Message = "Adobe agreement test settings are incomplete."
+                });
+            }
+
+            var agreementId = await _agreementService
+                .CreateAdobeAgreementAsync(
+                    accessToken,
+                    transientDocumentId,
+                    recipientEmail);
 
             return Ok(new
             {
@@ -233,88 +333,101 @@ public class AdobeSignController : ControllerBase
         {
             _logger.LogError(
                 ex,
-                "Adobe agreement creation failed.");
+                "Adobe agreement creation test failed.");
 
-            return BadRequest(new
+            return StatusCode(500, new
             {
                 Success = false,
-                Error = ex.Message
+                Message = "Adobe agreement creation test failed."
             });
         }
     }
 
     // =====================================================
-    // STEP 6
-    // DocuWare → Adobe Sign
+    // STEP 6: DOCUWARE WORKFLOW -> ADOBE SIGN
     // =====================================================
 
     [HttpPost("send")]
     public async Task<IActionResult> SendForSignature(
-        [FromBody] SignRequest request)
+        [FromBody] SignRequest? request)
     {
-        _logger.LogInformation(
-            "DocuWare workflow called the API.");
-
-        _logger.LogInformation(
-            "DocumentId: {DocumentId}",
-            request.DocumentId);
-
-        _logger.LogInformation(
-            "DocumentType: {DocumentType}",
-            request.DocumentType);
-
-        _logger.LogInformation(
-            "AgreementNumber: {AgreementNumber}",
-            request.AgreementNumber);
-
-        _logger.LogInformation(
-            "RecipientCompany: {RecipientCompany}",
-            request.RecipientCompany);
-
-        _logger.LogInformation(
-            "RecipientName: {RecipientName}",
-            request.RecipientName);
-
-        _logger.LogInformation(
-            "RecipientEmail: {RecipientEmail}",
-            request.RecipientEmail);
-
-        _logger.LogInformation(
-            "ProjectName: {ProjectName}",
-            request.ProjectName);
+        if (request == null)
+        {
+            return BadRequest(new
+            {
+                Success = false,
+                Message = "A signing request is required."
+            });
+        }
 
         if (!ModelState.IsValid)
         {
             _logger.LogWarning(
-                "Model validation failed.");
+                "Signing request validation failed.");
 
-            return BadRequest(ModelState);
+            return ValidationProblem(ModelState);
         }
 
-        if (string.IsNullOrWhiteSpace(
-                request.RecipientEmail))
+        try
         {
-            _logger.LogWarning(
-                "Recipient Email is missing.");
+            _logger.LogInformation(
+                "DocuWare workflow called the Adobe Sign API.");
 
-            return BadRequest(new
-            {
-                Success = false,
-                Message = "Recipient Email is required."
-            });
-        }
+            _logger.LogInformation(
+                "Processing DocuWare Document ID: {DocumentId}",
+                request.DocumentId);
 
-        _logger.LogInformation(
-            "Received agreement request for {Email}",
-            request.RecipientEmail);
+            _logger.LogInformation(
+                "Document Type: {DocumentType}",
+                request.DocumentType);
 
-        var result =
-            await _agreementService
+            _logger.LogInformation(
+                "Agreement Number: {AgreementNumber}",
+                request.AgreementNumber);
+
+            _logger.LogInformation(
+                "Recipient Company: {RecipientCompany}",
+                request.RecipientCompany);
+
+            _logger.LogInformation(
+                "Recipient Name: {RecipientName}",
+                request.RecipientName);
+
+            _logger.LogInformation(
+                "Project Name: {ProjectName}",
+                request.ProjectName);
+
+            // Do not log the recipient email or access tokens.
+            _logger.LogInformation(
+                "Starting Adobe agreement processing.");
+
+            var result = await _agreementService
                 .CreateAgreementAsync(request);
 
-        _logger.LogInformation(
-            "Agreement processing completed.");
+            _logger.LogInformation(
+                "Adobe agreement processing completed for DocuWare Document ID: {DocumentId}",
+                request.DocumentId);
 
-        return Ok(result);
+            return Ok(new
+            {
+                Success = true,
+                Message = "Adobe agreement processing completed.",
+                DocumentId = request.DocumentId,
+                Result = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Adobe agreement processing failed for DocuWare Document ID: {DocumentId}",
+                request.DocumentId);
+
+            return StatusCode(500, new
+            {
+                Success = false,
+                Message = "An error occurred while processing the Adobe agreement."
+            });
+        }
     }
 }

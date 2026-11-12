@@ -44,7 +44,10 @@ builder.Services.AddScoped<AdobeAgreementService>();
 // DocuWare Services
 builder.Services.AddScoped<DocuWareService>();
 builder.Services.AddScoped<DocuWareAuthService>();
-builder.Services.AddScoped<DocuWareDocumentService>();
+
+// DocuWare Document Service
+// Uses HttpClient through IHttpClientFactory
+builder.Services.AddHttpClient<DocuWareDocumentService>();
 
 // ======================================================
 // Build Application
