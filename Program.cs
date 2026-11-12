@@ -1,13 +1,17 @@
+
 using DocuWareAdobeSignIntegration.Models;
 using DocuWareAdobeSignIntegration.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ======================================================
-// Controllers
+// Controllers and Razor Pages
 // ======================================================
 
 builder.Services.AddControllers();
+
+// Enable Razor Pages frontend
+builder.Services.AddRazorPages();
 
 // ======================================================
 // Swagger / OpenAPI
@@ -49,30 +53,64 @@ builder.Services.AddScoped<DocuWareDocumentService>();
 var app = builder.Build();
 
 // ======================================================
-// Middleware Pipeline
+// Static Files
+// ======================================================
+
+app.UseStaticFiles();
+
+// ======================================================
+// Swagger / OpenAPI Middleware
 // ======================================================
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
 
-    app.UseSwaggerUI(c =>
+    app.UseSwaggerUI(options =>
     {
-        c.SwaggerEndpoint(
+        options.SwaggerEndpoint(
             "/swagger/v1/swagger.json",
             "DocuWare Adobe Sign Integration API V1");
 
-        c.RoutePrefix = "swagger";
+        options.RoutePrefix = "swagger";
 
-        c.DocumentTitle =
+        options.DocumentTitle =
             "DocuWare Adobe Sign Integration";
+
+        options.InjectStylesheet(
+            "/swagger/custom.css");
+
+        options.InjectJavascript(
+            "/swagger/custom.js");
     });
 }
 
+// ======================================================
+// HTTPS Redirection
+// ======================================================
+
 app.UseHttpsRedirection();
+
+// ======================================================
+// Authorization
+// ======================================================
 
 app.UseAuthorization();
 
+// ======================================================
+// Map Razor Pages
+// ======================================================
+
+app.MapRazorPages();
+
+// ======================================================
+// Controller Mapping
+// ======================================================
+
 app.MapControllers();
+
+// ======================================================
+// Run Application
+// ======================================================
 
 app.Run();

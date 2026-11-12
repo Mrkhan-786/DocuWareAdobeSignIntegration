@@ -1,0 +1,44 @@
+﻿
+/* Swagger UI custom design */
+
+body {
+    background-color: #f4f6fa;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* Top navigation bar */
+.swagger-ui .topbar {
+    background-color: #172554;
+    padding: 12px 0;
+}
+
+/* Main content */
+.swagger-ui .wrapper {
+    max-width: 1200px;
+}
+
+/* API endpoint sections */
+.swagger-ui .opblock {
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    overflow: hidden;
+}
+
+    /* Endpoint headings */
+    .swagger-ui .opblock .opblock-summary {
+        padding: 12px;
+    }
+
+/* Main headings */
+.swagger-ui .info .title {
+    color: #172554;
+    font-size: 30px;
+}
+
+/* Authorize button */
+.swagger-ui .btn.authorize {
+    border-radius: 6px;
+    background-color: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}

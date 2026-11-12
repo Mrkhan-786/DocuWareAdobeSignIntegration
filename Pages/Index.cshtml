@@ -1,0 +1,43 @@
+@page
+@model DocuWareAdobeSignIntegration.Pages.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+<section class="toolbar">
+    <div class="search-box"><i class="bi bi-search"></i><input id="documentSearch" type="search" placeholder="Search all documents..." aria-label="Search documents" /></div>
+    <div class="filter-row"><span>Filter by status</span>
+        <button class="status-filter active" data-filter="all">All</button>
+        <button class="status-filter" data-filter="In Progress">In Progress</button>
+        <button class="status-filter" data-filter="Complete">Complete</button>
+        <button class="status-filter" data-filter="Awaiting Action">Awaiting Action</button>
+        <button class="status-filter" data-filter="Failed">Failed</button>
+    </div>
+</section>
+<section class="stats-grid">
+    <article class="stat-card blue"><div class="stat-icon"><i class="bi bi-file-earmark"></i></div><div><span>Total documents uploaded</span><strong>@Model.TotalUploaded</strong></div></article>
+    <article class="stat-card amber"><div class="stat-icon"><i class="bi bi-hourglass-split"></i></div><div><span>Awaiting signatures</span><strong>@Model.AwaitingSignatures</strong></div></article>
+    <article class="stat-card purple"><div class="stat-icon"><i class="bi bi-pen"></i></div><div><span>Currently being signed</span><strong>@Model.InProgress</strong></div></article>
+    <article class="stat-card green"><div class="stat-icon"><i class="bi bi-check2-circle"></i></div><div><span>Successfully signed</span><strong>@Model.Completed</strong></div></article>
+    <article class="stat-card red"><div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div><div><span>Failed / rejected</span><strong>@Model.Failed</strong></div></article>
+</section>
+<div class="section-heading"><div><h2>Recent document activity</h2><p>Track the latest signing activity across your documents.</p></div><a class="btn btn-outline-primary btn-sm" asp-page="/Pending/Index">View pending <i class="bi bi-arrow-right"></i></a></div>
+<section id="activityList" class="activity-list">
+@foreach (var item in Model.RecentActivity)
+{
+    <article class="document-card" data-status="@item.Status" data-search="@($"{item.Name} {item.Recipient} {item.Status}".ToLowerInvariant())">
+        <div class="document-accent"></div>
+        <div class="document-head"><div><h3>@item.Name</h3><div class="document-meta">Sent @item.SentAt.ToString("dd MMM yyyy, HH:mm") <span>•</span> Assigned to @item.Recipient</div></div><span class="status-pill @item.StatusClass">@item.Status</span><button class="icon-button" title="More actions" onclick="showActionNotice('@item.Name')"><i class="bi bi-three-dots-vertical"></i></button></div>
+        <div class="signer-list">
+            <div class="signer-row"><span class="signer-avatar">@item.Recipient.Substring(0,1)</span><div class="signer-details"><b>@item.Recipient</b><small>@item.Email</small></div>
+                <div class="progress-track">
+                    <span class="step done"><i></i>Emailed</span><span class="track-line"></span>
+                    <span class="step @(item.Progress >= 2 ? "done" : "")"><i></i>Opened</span><span class="track-line"></span>
+                    <span class="step @(item.Progress >= 3 ? "done" : "")"><i></i>Viewed</span><span class="track-line"></span>
+                    <span class="step @(item.Progress >= 4 ? "done" : "")"><i></i>@item.FinalStep</span>
+                </div>
+            </div>
+        </div>
+    </article>
+}
+</section>
+<div id="emptyState" class="empty-state d-none"><i class="bi bi-search"></i><h3>No documents found</h3><p>Try another search term or status filter.</p></div>

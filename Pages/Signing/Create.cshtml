@@ -1,0 +1,16 @@
+@page
+@{
+    ViewData["Title"] = "Send for Signature";
+}
+<div class="page-intro"><div><h2>Create a signing request</h2><p>Choose a DocuWare document and provide the recipient details.</p></div></div>
+<form class="content-panel" onsubmit="event.preventDefault(); alert('The form is ready for backend integration. No agreement has been sent.');">
+    <h3 class="panel-title">1. Selected document</h3>
+    <div class="notice"><i class="bi bi-file-earmark-pdf"></i><div><b>No document selected</b><p>First find and select a document from the Documents page.</p><a asp-page="/Documents/Index">Browse DocuWare documents</a></div></div>
+    <h3 class="panel-title mt-4">2. Signer details</h3>
+    <div class="row g-3"><div class="col-md-6"><label class="form-label">Signer full name</label><input class="form-control" required placeholder="Full name" /></div><div class="col-md-6"><label class="form-label">Email address</label><input class="form-control" type="email" required placeholder="name@example.com" /></div></div>
+    <h3 class="panel-title mt-4">3. Invitation details</h3>
+    <div class="mb-3"><label class="form-label">Email subject</label><input class="form-control" value="Please sign this document" /></div>
+    <div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" rows="3" placeholder="Add instructions for the signer..."></textarea></div>
+    <div class="mb-4"><label class="form-label">Signing order</label><select class="form-select"><option>Sequential</option><option>Parallel</option></select></div>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Send for signature</button>
+</form>

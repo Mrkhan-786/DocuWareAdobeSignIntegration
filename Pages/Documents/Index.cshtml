@@ -1,0 +1,11 @@
+@page
+@{
+    ViewData["Title"] = "Documents";
+}
+<div class="page-intro"><div><h2>Find a document in DocuWare</h2><p>Search your DocuWare repository and choose a document to send for signature.</p></div></div>
+<div class="content-panel">
+    <label class="form-label" for="docSearch">Document name or document number</label>
+    <div class="input-group mb-3"><input id="docSearch" class="form-control" placeholder="e.g. Contract.pdf or 100245" /><button class="btn btn-primary" type="button" onclick="alert('Connect this search to your DocuWareDocumentService next.')"><i class="bi bi-search"></i> Search DocuWare</button></div>
+    <div class="notice"><i class="bi bi-info-circle"></i><div><b>DocuWare connection</b><p>The screen is ready. The search action will be connected to your existing DocuWare document service in the integration step.</p></div></div>
+    <div class="empty-placeholder"><i class="bi bi-file-earmark-pdf"></i><b>No search performed yet</b><span>Search DocuWare to display available documents.</span></div>
+</div>
