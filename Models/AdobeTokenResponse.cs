@@ -15,4 +15,10 @@ public class AdobeTokenResponse
 
     [JsonPropertyName("expires_in")]
     public int ExpiresIn { get; set; }
+
+    [JsonPropertyName("api_access_point")]
+    public string ApiAccessPoint { get; set; } = string.Empty;
+
+    [JsonPropertyName("web_access_point")]
+    public string WebAccessPoint { get; set; } = string.Empty;
 }

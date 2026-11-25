@@ -1,8 +1,27 @@
+
+# Build output
 bin/
 obj/
-.vs/
 
+# Visual Studio
+.vs/
 *.user
 *.suo
 
+# Local configuration and secrets
 appsettings.Development.json
+.env
+.env.*
+*.pfx
+*.p12
+
+# Local application data
+App_Data/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log

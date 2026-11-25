@@ -1,0 +1,518 @@
+﻿@page
+@model DocuWareAdobeSignIntegration.Pages.FileCabinet.IndexModel
+@using DocuWareAdobeSignIntegration.Helpers
+
+@{
+    ViewData["Title"] = "File Cabinet";
+
+    var folderModel = DocumentCategorizer.BuildFolders(
+        Model.Documents.Select(d => (
+            DocumentCategorizer.Resolve(null, null, d.FileName).Name,
+            d.Status)),
+        "File cabinet");
+}
+
+<!-- PAGE HEADING -->
+
+<div class="section-heading">
+    <div>
+        <h2>File Cabinet</h2>
+        <p>
+            Your completed and signed documents, securely stored and ready
+            to download or save back to DocuWare.
+        </p>
+    </div>
+</div>
+
+<!-- NOTIFICATIONS -->
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        @TempData["SuccessMessage"]
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        @TempData["ErrorMessage"]
+    </div>
+}
+
+<!-- FILE CABINET STATISTICS -->
+
+<section class="stats-grid">
+
+    <article class="stat-card blue">
+        <div class="stat-icon">
+            <i class="bi bi-folder2-open"></i>
+        </div>
+        <div>
+            <span>Total signed documents</span>
+            <strong>@Model.TotalDocuments</strong>
+        </div>
+    </article>
+
+    <article class="stat-card green">
+        <div class="stat-icon">
+            <i class="bi bi-cloud-check"></i>
+        </div>
+        <div>
+            <span>Saved locally</span>
+            <strong>@Model.SavedDocuments</strong>
+        </div>
+    </article>
+
+    <article class="stat-card amber">
+        <div class="stat-icon">
+            <i class="bi bi-hourglass-split"></i>
+        </div>
+        <div>
+            <span>Awaiting DocuWare archive</span>
+            <strong>@Model.PendingArchiveDocuments</strong>
+        </div>
+    </article>
+
+    <article class="stat-card red">
+        <div class="stat-icon">
+            <i class="bi bi-exclamation-triangle"></i>
+        </div>
+        <div>
+            <span>DocuWare archive failures</span>
+            <strong>@Model.FailedArchiveDocuments</strong>
+        </div>
+    </article>
+
+</section>
+
+<!-- CATEGORY FOLDERS -->
+
+<partial name="_FolderCabinet" model="folderModel" />
+
+<!-- SIGNED DOCUMENTS -->
+
+<div class="section-heading mt-4">
+    <div>
+        <h2>Signed documents</h2>
+        <p>
+            Select a category folder above to filter your documents.
+        </p>
+    </div>
+
+    <a class="btn btn-outline-primary btn-sm"
+       asp-page="/FileCabinet/Index">
+
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        Refresh
+
+    </a>
+</div>
+
+@if (Model.Documents.Any())
+{
+    <div class="docuware-card-grid">
+
+        @foreach (var (document, cardIndex) in Model.Documents
+            .Select((item, index) => (item, index)))
+        {
+            var category = DocumentCategorizer.Resolve(
+                null,
+                null,
+                document.FileName);
+
+            var status = document.Status ?? "Awaiting Signature";
+
+            var statusColor =
+                DocumentCategorizer.StatusColor(status);
+
+            var archiveFailed = string.Equals(
+                document.DocuWareArchiveStatus,
+                "Failed",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isLocallySaved =
+                !string.IsNullOrWhiteSpace(document.SignedPdfPath);
+
+            var canArchive =
+                isLocallySaved &&
+                !document.IsArchived &&
+                !string.IsNullOrWhiteSpace(document.OriginalDocumentId) &&
+                !string.IsNullOrWhiteSpace(document.SectionId);
+
+            var localSaveFailed =
+                !string.IsNullOrWhiteSpace(document.FailureMessage);
+
+            <article class="docuware-card st-@statusColor"
+                     style="--i:@cardIndex"
+                     data-folder-item
+                     data-category="@category.Name"
+                     data-search="@($"{document.FileName} {document.OriginalDocumentId} {category.Name} {status} {document.DocuWareArchiveStatus}".ToLowerInvariant())">
+
+                <!-- CARD HEADER -->
+
+                <div class="docuware-card-header">
+
+                    <div class="docuware-file-icon">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+
+                    <div class="docuware-file-info">
+
+                        <h3>@document.FileName</h3>
+
+                        <span>
+                            Agreement ID: @document.AgreementId
+                        </span>
+
+                        <span>
+                            DocuWare Document ID:
+                            @(string.IsNullOrWhiteSpace(document.OriginalDocumentId)
+                                ? "Not available"
+                                : document.OriginalDocumentId)
+                        </span>
+
+                        <div>
+                            <span class="document-category-badge category-@category.Css">
+                                @category.Name
+                            </span>
+                        </div>
+
+                        <span class="document-type-label">
+                            Signed PDF workflow
+                        </span>
+
+                    </div>
+
+                    <span class="document-status st-@statusColor">
+                        <i class="sdot"></i>
+                        @status
+                    </span>
+
+                </div>
+
+                <hr />
+
+                <!-- LOCAL STORAGE DETAILS -->
+
+                <div class="docuware-details">
+
+                    <div>
+                        <span>Local storage status</span>
+
+                        <strong>
+                            @if (isLocallySaved)
+                            {
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                    Saved locally
+                                </span>
+                            }
+                            else if (localSaveFailed)
+                            {
+                                <span class="text-danger">
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i>
+                                    Save failed
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-warning">
+                                    <i class="bi bi-clock-history me-1"></i>
+                                    Awaiting local save
+                                </span>
+                            }
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Date saved locally</span>
+
+                        <strong>
+                            @(document.SignedPdfSavedAtUtc?
+                                .ToLocalTime()
+                                .ToString("dd MMM yyyy, HH:mm")
+                                ?? "Not saved")
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="docuware-details mt-2">
+
+                    <div>
+                        <span>File size</span>
+
+                        <strong>
+                            @IndexModel.FormatFileSize(
+                                document.SignedPdfSizeBytes)
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Adobe agreement ID</span>
+
+                        <strong>
+                            @document.AgreementId
+                        </strong>
+                    </div>
+
+                </div>
+
+                <!-- LOCAL SAVE ERROR -->
+                @if (localSaveFailed)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @document.FailureMessage
+                    </div>
+                }
+
+                <hr />
+
+                <!-- DOCUWARE ARCHIVE STATUS -->
+
+                <div class="docuware-details">
+
+                    <div>
+                        <span>DocuWare archive status</span>
+
+                        <strong>
+                            @if (document.IsArchived)
+                            {
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                    Saved to DocuWare
+                                </span>
+                            }
+                            else if (archiveFailed)
+                            {
+                                <span class="text-danger">
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i>
+                                    Failed
+                                </span>
+                            }
+                            else if (isLocallySaved)
+                            {
+                                <span class="text-warning">
+                                    <i class="bi bi-clock-history me-1"></i>
+                                    Awaiting DocuWare save
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">
+                                    Not yet saved
+                                </span>
+                            }
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Date archived</span>
+
+                        <strong>
+                            @(document.ArchivedAtUtc?
+                                .ToLocalTime()
+                                .ToString("dd MMM yyyy, HH:mm")
+                                ?? "Not archived")
+                        </strong>
+                    </div>
+
+                </div>
+
+                <!-- DOCUWARE ARCHIVE ERROR -->
+                @if (archiveFailed &&
+                                     !string.IsNullOrWhiteSpace(document.DocuWareArchiveError))
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @document.DocuWareArchiveError
+                    </div>
+                }
+
+                <hr />
+
+                <!-- ACTION BUTTONS -->
+
+                <div class="d-flex flex-wrap gap-2">
+
+                    @if (isLocallySaved)
+                    {
+                        <!-- DOWNLOAD LOCAL PDF -->
+
+                        <a asp-page="/FileCabinet/Index"
+                           asp-page-handler="Download"
+                           asp-route-id="@document.Id"
+                           class="btn btn-primary btn-sm">
+
+                            <i class="bi bi-download me-1"></i>
+                            Download PDF
+
+                        </a>
+                    }
+                    else
+                    {
+                        <!-- SAVE FROM ADOBE SIGN TO LOCAL STORAGE -->
+
+                        <form method="post"
+                              asp-page="/FileCabinet/Index"
+                              asp-page-handler="SaveToFileCabinet"
+                              asp-route-id="@document.Id"
+                              onsubmit="return confirm('Check Adobe Sign and save the completed signed PDF to the local File Cabinet?');">
+
+                            <button type="submit"
+                                    class="btn btn-outline-primary btn-sm">
+
+                                <i class="bi bi-cloud-download me-1"></i>
+                                Save signed PDF locally
+
+                            </button>
+
+                        </form>
+                    }
+
+                    @if (document.IsArchived)
+                    {
+                        <button type="button"
+                                class="btn btn-outline-success btn-sm"
+                                disabled>
+
+                            <i class="bi bi-check-circle me-1"></i>
+                            Saved to DocuWare
+
+                        </button>
+                    }
+                    else if (canArchive)
+                    {
+                        <!-- SEPARATE DOCUWARE REPLACEMENT ACTION -->
+
+                        <form method="post"
+                              asp-page="/FileCabinet/Index"
+                              asp-page-handler="SaveToDocuWare"
+                              asp-route-id="@document.Id"
+                              onsubmit="return confirm('Replace the original PDF section in DocuWare with this signed PDF? The original DocuWare document ID will be preserved.');">
+
+                            <button type="submit"
+                                    class="btn btn-outline-success btn-sm">
+
+                                <i class="bi bi-cloud-arrow-up me-1"></i>
+
+                                @(archiveFailed
+                                    ? "Retry DocuWare Save"
+                                    : "Save to DocuWare")
+
+                            </button>
+
+                        </form>
+                    }
+
+                    <!-- MOVE TO RECYCLE BIN -->
+
+                    <form method="post"
+                          asp-page="/FileCabinet/Index"
+                          asp-page-handler="MoveToRecycleBin"
+                          asp-route-id="@document.Id"
+                          onsubmit="return confirm('Move this document to the Recycle Bin? You can permanently delete it later from the Recycle Bin.');">
+
+                        <button type="submit"
+                                class="btn btn-outline-danger btn-sm">
+
+                            <i class="bi bi-trash me-1"></i>
+                            Move to Recycle Bin
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </article>
+        }
+
+    </div>
+
+    <div id="folderEmpty" class="empty-state d-none">
+        <i class="bi bi-folder2-open"></i>
+        <h3>This folder is empty</h3>
+        <p>
+            There are no documents in this category.
+        </p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+
+        <div class="empty-state">
+            <i class="bi bi-folder2-open"></i>
+
+            <h3>Your File Cabinet is empty</h3>
+
+            <p>
+                Your Adobe Sign agreement workflows will appear here.
+                Once an agreement is signed, you can save its PDF locally
+                and then separately save it back to DocuWare.
+            </p>
+
+            <a asp-page="/RecycleBin/Index"
+               class="btn btn-outline-secondary mt-3">
+
+                <i class="bi bi-trash me-1"></i>
+                Open Recycle Bin
+
+            </a>
+        </div>
+
+    </div>
+}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const folderButtons = document.querySelectorAll(
+            ".category-filter[data-category-filter]"
+        );
+
+        const folderItems = document.querySelectorAll(
+            "[data-folder-item]"
+        );
+
+        const emptyState = document.getElementById("folderEmpty");
+
+        folderButtons.forEach(function (button) {
+
+            button.addEventListener("click", function () {
+
+                const selectedCategory =
+                    (button.dataset.categoryFilter || "all").toLowerCase();
+
+                let visibleCount = 0;
+
+                folderItems.forEach(function (item) {
+
+                    const category =
+                        (item.dataset.category || "").toLowerCase();
+
+                    const visible =
+                        selectedCategory === "all" ||
+                        category === selectedCategory;
+
+                    item.style.display = visible ? "" : "none";
+
+                    if (visible) {
+                        visibleCount++;
+                    }
+                });
+
+                if (emptyState) {
+                    emptyState.classList.toggle(
+                        "d-none",
+                        visibleCount > 0
+                    );
+                }
+            });
+        });
+    });
+</script>

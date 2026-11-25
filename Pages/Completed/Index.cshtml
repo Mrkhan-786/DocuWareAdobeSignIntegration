@@ -1,6 +1,473 @@
 @page
+@model DocuWareAdobeSignIntegration.Pages.CompletedModel
+
 @{
     ViewData["Title"] = "Completed Documents";
 }
-<div class="page-intro"><div><h2>Completed documents</h2><p>Successfully signed documents archived back into DocuWare.</p></div></div>
-<div class="content-panel"><div class="notice"><i class="bi bi-check-circle"></i><div><b>Completed agreement list</b><p>Only mark a transaction complete once the signed PDF has also been successfully saved in DocuWare.</p></div></div></div>
+
+<div class="page-intro">
+    <div>
+        <h2>Completed documents</h2>
+        <p>Signed documents that have been successfully saved back into DocuWare.</p>
+    </div>
+</div>
+
+<div class="completed-page">
+    <div class="completed-page-heading">
+        <div>
+            <h3>Completed documents</h3>
+            <p>These agreements have been signed and their signed PDFs have been saved in DocuWare.</p>
+        </div>
+
+        <span class="completed-count">
+            @Model.CompletedCount @(Model.CompletedCount == 1 ? "document" : "documents")
+        </span>
+    </div>
+
+    @if (Model.CompletedDocuments == null || !Model.CompletedDocuments.Any())
+    {
+        <div class="completed-empty-state">
+            <div class="completed-empty-icon">
+                <i class="bi bi-file-earmark-check"></i>
+            </div>
+
+            <h4>No completed documents yet</h4>
+
+            <p>
+                When an agreement has been fully signed and its signed PDF
+                has been successfully saved in DocuWare, it will appear here.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="completed-document-grid">
+            @foreach (var document in Model.CompletedDocuments)
+            {
+                var isArchived =
+                    document.IsArchived &&
+                    document.CompletedAtUtc.HasValue;
+
+                <article class="completed-document-card">
+                    <div class="completed-document-top">
+                        <div class="completed-file-icon">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </div>
+
+                        <div class="completed-document-title">
+                            <h4 title="@document.FileName">
+                                @document.FileName
+                            </h4>
+
+                            <p>
+                                Original DocuWare ID:
+                                @document.OriginalDocumentId
+                            </p>
+                        </div>
+
+                        <span class="completed-status">
+                            <i class="bi bi-check-circle-fill"></i>
+                            Saved to DocuWare
+                        </span>
+                    </div>
+
+                    <div class="completed-document-meta">
+                        <div>
+                            <span class="meta-label">Agreement ID</span>
+                            <span class="meta-value"
+                                  title="@document.AgreementId">
+                                @document.AgreementId
+                            </span>
+                        </div>
+
+                        <div>
+                            <span class="meta-label">Recipient</span>
+                            <span class="meta-value"
+                                  title="@document.SignerEmail">
+                                @document.SignerEmail
+                            </span>
+                        </div>
+
+                        <div>
+                            <span class="meta-label">Date completed</span>
+                            <span class="meta-value">
+                                @(document.CompletedAtUtc?.ToLocalTime()
+                                    .ToString("dd MMM yyyy, HH:mm") ?? "Not available")
+                            </span>
+                        </div>
+
+                        <div>
+                            <span class="meta-label">Date saved to DocuWare</span>
+                            <span class="meta-value">
+                                @(document.ArchivedAtUtc?.ToLocalTime()
+                                    .ToString("dd MMM yyyy, HH:mm") ?? "Not available")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="completed-progress-section">
+                        <div class="completed-progress-heading">
+                            <h5>Signing progress</h5>
+
+                            <strong>
+                                @(isArchived ? "100% complete" : "In progress")
+                            </strong>
+                        </div>
+
+                        <div class="completed-steps"
+                             aria-label="Signing and DocuWare archive progress">
+
+                            <div class="completed-step is-done">
+                                <span class="step-circle">
+                                    <i class="bi bi-check-lg"></i>
+                                </span>
+                                <span>Uploaded</span>
+                            </div>
+
+                            <div class="completed-step is-done">
+                                <span class="step-circle">
+                                    <i class="bi bi-check-lg"></i>
+                                </span>
+                                <span>Sent</span>
+                            </div>
+
+                            <div class="completed-step is-done">
+                                <span class="step-circle">
+                                    <i class="bi bi-check-lg"></i>
+                                </span>
+                                <span>Signed</span>
+                            </div>
+
+                            <div class="completed-step @(isArchived ? "is-done" : "")">
+                                <span class="step-circle">
+                                    @if (isArchived)
+                                    {
+                                        <i class="bi bi-check-lg"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-clock"></i>
+                                    }
+                                </span>
+                                <span>DocuWare</span>
+                            </div>
+                        </div>
+
+                        <div class="completed-progress-track"
+                             role="progressbar"
+                             aria-valuenow="@(isArchived ? 100 : 90)"
+                             aria-valuemin="0"
+                             aria-valuemax="100"
+                             aria-label="Signing and archive progress">
+
+                            <div class="completed-progress-fill"
+                                 style="width: @(isArchived ? "100%" : "90%");">
+                            </div>
+                        </div>
+
+                        <p class="completed-progress-caption">
+                            @if (isArchived)
+                            {
+                                <text>
+                                    Adobe Sign confirms that the agreement is signed
+                                    and DocuWare confirms that the signed PDF has
+                                    successfully replaced the original document section.
+                                </text>
+                            }
+                            else
+                            {
+                                <text>
+                                    The agreement has been signed, but the DocuWare
+                                    archive operation has not yet been confirmed.
+                                </text>
+                            }
+                        </p>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .completed-page {
+        margin-top: 1.5rem;
+    }
+
+    .completed-page-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+        .completed-page-heading h3 {
+            margin: 0 0 .35rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .completed-page-heading p {
+            margin: 0;
+            color: var(--text-muted, #9297a8);
+        }
+
+    .completed-count {
+        flex: 0 0 auto;
+        padding: .4rem .75rem;
+        border: 1px solid rgba(128, 128, 160, .25);
+        border-radius: 999px;
+        color: var(--text-muted, #aeb2c2);
+        font-size: .85rem;
+    }
+
+    .completed-document-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+        gap: 1rem;
+    }
+
+    .completed-document-card {
+        min-width: 0;
+        padding: 1.25rem;
+        border: 1px solid rgba(145, 145, 175, .24);
+        border-radius: 18px;
+        background: var(--card-bg, rgba(54, 55, 76, .72));
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .10);
+    }
+
+    .completed-document-top {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        min-width: 0;
+    }
+
+    .completed-file-icon {
+        display: flex;
+        flex: 0 0 48px;
+        width: 48px;
+        height: 48px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 13px;
+        background: rgba(244, 89, 109, .13);
+        color: #ff647b;
+        font-size: 1.65rem;
+    }
+
+    .completed-document-title {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+        .completed-document-title h4 {
+            overflow: hidden;
+            margin: 0 0 .3rem;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .completed-document-title p {
+            margin: 0;
+            color: var(--text-muted, #9da2b3);
+            font-size: .84rem;
+        }
+
+    .completed-status {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: .35rem;
+        padding: .38rem .65rem;
+        border-radius: 999px;
+        background: rgba(32, 201, 151, .14);
+        color: #20c997;
+        font-size: .8rem;
+        font-weight: 700;
+    }
+
+    .completed-document-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-top: 1.15rem;
+        padding: 1rem 0;
+        border-top: 1px solid rgba(145, 145, 175, .20);
+        border-bottom: 1px solid rgba(145, 145, 175, .20);
+    }
+
+        .completed-document-meta > div {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: .35rem;
+        }
+
+    .meta-label {
+        color: var(--text-muted, #9297a8);
+        font-size: .8rem;
+    }
+
+    .meta-value {
+        overflow-wrap: anywhere;
+        font-size: .9rem;
+        font-weight: 600;
+    }
+
+    .completed-progress-section {
+        padding-top: 1.1rem;
+    }
+
+    .completed-progress-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: 1rem;
+    }
+
+        .completed-progress-heading h5 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .completed-progress-heading strong {
+            color: #20c997;
+            font-size: .9rem;
+            white-space: nowrap;
+        }
+
+    .completed-steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .35rem;
+        margin-bottom: .85rem;
+    }
+
+    .completed-step {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        align-items: center;
+        gap: .45rem;
+        color: #9297a8;
+        font-size: .78rem;
+        font-weight: 600;
+        text-align: center;
+    }
+
+        .completed-step.is-done {
+            color: #20c997;
+        }
+
+    .step-circle {
+        display: flex;
+        width: 38px;
+        height: 38px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(145, 145, 175, .20);
+        color: var(--text-muted, #9297a8);
+        font-size: 1.1rem;
+    }
+
+    .completed-step.is-done .step-circle {
+        background: #20c997;
+        color: #102c29;
+    }
+
+    .completed-progress-track {
+        width: 100%;
+        height: 9px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(145, 145, 175, .22);
+    }
+
+    .completed-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: #20c997;
+        transition: width .5s ease;
+    }
+
+    .completed-progress-caption {
+        margin: .7rem 0 0;
+        color: var(--text-muted, #9297a8);
+        font-size: .84rem;
+        line-height: 1.5;
+    }
+
+    .completed-empty-state {
+        display: flex;
+        min-height: 250px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        border: 1px dashed rgba(145, 145, 175, .35);
+        border-radius: 18px;
+        text-align: center;
+    }
+
+    .completed-empty-icon {
+        display: flex;
+        width: 58px;
+        height: 58px;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+        border-radius: 16px;
+        background: rgba(32, 201, 151, .12);
+        color: #20c997;
+        font-size: 1.8rem;
+    }
+
+    .completed-empty-state h4 {
+        margin-bottom: .5rem;
+        font-weight: 700;
+    }
+
+    .completed-empty-state p {
+        max-width: 520px;
+        margin: 0;
+        color: var(--text-muted, #9297a8);
+    }
+
+    @@media (max-width: 575.98px) {
+        .completed-page-heading {
+            align-items: flex-start;
+        }
+
+        .completed-document-card {
+            padding: 1rem;
+        }
+
+        .completed-document-top {
+            flex-wrap: wrap;
+        }
+
+        .completed-status {
+            margin-left: auto;
+        }
+
+        .completed-document-meta {
+            grid-template-columns: 1fr;
+        }
+
+        .completed-step {
+            font-size: .7rem;
+        }
+
+        .step-circle {
+            width: 34px;
+            height: 34px;
+        }
+    }
+</style>

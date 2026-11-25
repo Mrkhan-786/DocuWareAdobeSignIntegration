@@ -1,0 +1,184 @@
+﻿@page "/Account/Register"
+
+@{
+    Layout = null;
+    ViewData["Title"] = "Request access | DocuWare Sign";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10194f" />
+
+    <title>@ViewData["Title"]</title>
+
+    <link rel="stylesheet"
+          href="/css/auth.css"
+          asp-append-version="true" />
+</head>
+
+<body class="auth-page">
+
+    <main class="auth-shell">
+
+        <!-- Left branding panel -->
+        <section class="auth-brand-panel" aria-label="DocuWare Sign">
+
+            <div class="brand-content">
+
+                <img class="brand-logo"
+                     src="~/images/docuware-sign-logo.png"
+                     alt="DocuWare Sign" />
+
+                <div class="brand-copy">
+
+                    <span class="eyebrow">
+                        DOCUMENT WORKFLOW &amp; E-SIGNATURES
+                    </span>
+
+                    <h1>Bring your team together.</h1>
+
+                    <p>
+                        Give your team a secure place to prepare,
+                        send and track documents for signature.
+                    </p>
+
+                </div>
+
+                <div class="brand-footer">
+                    One account. One secure workspace.
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- Right registration section -->
+        <section class="auth-main">
+
+            <div class="auth-card register-card">
+
+                <!-- Mobile logo -->
+                <div class="mobile-brand">
+
+                    <img src="~/images/docuware-sign-logo.png"
+                         alt="DocuWare Sign" />
+
+                </div>
+
+                <div class="auth-heading">
+
+                    <span class="eyebrow">GET STARTED</span>
+
+                    <h2>Request access</h2>
+
+                    <p>
+                        DocuWare Sign uses your organisation's
+                        existing DocuWare account.
+                    </p>
+
+                </div>
+
+                <!-- Access information -->
+                <div class="access-panel">
+
+                    <div class="access-icon" aria-hidden="true">
+                        ✦
+                    </div>
+
+                    <div>
+
+                        <h3>Access is managed by your administrator</h3>
+
+                        <p>
+                            To register, ask your DocuWare administrator
+                            to create or enable your DocuWare user account
+                            and grant you access to the required document cabinet.
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <!-- Registration steps -->
+                <div class="steps-list">
+
+                    <div class="step-item">
+
+                        <span>1</span>
+
+                        <p>
+                            <strong>Contact your administrator</strong>
+
+                            <small>
+                                Request a DocuWare user account
+                                if you don't already have one.
+                            </small>
+                        </p>
+
+                    </div>
+
+                    <div class="step-item">
+
+                        <span>2</span>
+
+                        <p>
+                            <strong>Get access approved</strong>
+
+                            <small>
+                                Your administrator can assign
+                                the appropriate permissions.
+                            </small>
+                        </p>
+
+                    </div>
+
+                    <div class="step-item">
+
+                        <span>3</span>
+
+                        <p>
+                            <strong>Sign in securely</strong>
+
+                            <small>
+                                Return here and authenticate
+                                with your DocuWare credentials.
+                            </small>
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <!-- DocuWare authentication -->
+                <a class="primary-button"
+                   href="/api/docuware/login?returnUrl=%2F">
+
+                    <span>Continue to DocuWare sign in</span>
+
+                    <span class="button-arrow" aria-hidden="true">→</span>
+
+                </a>
+
+                <p class="auth-bottom">
+                    Already have access?
+                    <a href="/Account/Login">Back to sign in</a>
+                </p>
+
+            </div>
+
+            <!-- Footer -->
+            <footer class="page-footer">
+                © @DateTime.Now.Year DocuWare Sign
+                <span>·</span>
+                Secure document management
+            </footer>
+
+        </section>
+
+    </main>
+
+</body>
+</html>

@@ -1,51 +1,281 @@
+
+@using System
+@using System.Linq
+@using System.Security.Claims
+
+@{
+    var displayUserName = "User";
+
+    if (User.Identity?.IsAuthenticated == true)
+    {
+        string? FindClaim(params string[] claimTypes)
+        {
+            return User.Claims
+                .FirstOrDefault(claim =>
+                    claimTypes.Any(type =>
+                        string.Equals(
+                            claim.Type,
+                            type,
+                            StringComparison.OrdinalIgnoreCase)))
+                ?.Value;
+        }
+
+        displayUserName =
+            FindClaim(
+                "username",
+                "preferred_username",
+                "user_name",
+                "userID",
+                "login")
+            ?? FindClaim(
+                ClaimTypes.Name,
+                "name",
+                ClaimTypes.Email,
+                "email")
+            ?? User.Identity.Name
+            ?? "User";
+
+        displayUserName = string.IsNullOrWhiteSpace(displayUserName)
+            ? "User"
+            : displayUserName.Trim();
+    }
+
+    var userInitial = displayUserName.Length > 0
+        ? displayUserName.Substring(0, 1).ToUpperInvariant()
+        : "U";
+
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+}
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>@ViewData["Title"] - DocuWare Sign</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+    <!-- Application Styles -->
+    <link rel="stylesheet"
+          href="~/css/site.css"
+          asp-append-version="true" />
 </head>
+
 <body>
+
     <div class="app-shell">
+
+        <!-- SIDEBAR -->
         <aside class="sidebar">
-            <a class="brand" asp-page="/Index"><span class="brand-mark"><i class="bi bi-layers"></i></span><span>DocuWare <b>Sign</b></span></a>
-            <div class="workspace">
-                <small>TEAM SPACE</small>
-                <strong>DocuWare Signing</strong>
-                <i class="bi bi-chevron-down"></i>
-            </div>
-            <a class="side-action" asp-page="/Documents/Index"><i class="bi bi-plus-lg"></i> New</a>
-            <a class="side-action" asp-page="/Signing/Create"><i class="bi bi-send"></i> Send</a>
+
+            <!-- BRAND -->
+            <a class="brand" asp-page="/Index">
+
+                <span class="brand-mark">
+                    <i class="bi bi-layers"></i>
+                </span>
+
+                <span>
+                    DocuWare <b>Sign</b>
+                </span>
+
+            </a>
+
+            <!-- NEW DOCUMENT BUTTON -->
+            <a class="side-action" asp-page="/Documents/Index">
+                <i class="bi bi-plus-lg"></i>
+                New
+            </a>
+
+            <!-- MAIN NAVIGATION -->
             <nav class="side-nav" aria-label="Main navigation">
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Index" ? "active" : "")" asp-page="/Index"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Documents/Index" ? "active" : "")" asp-page="/Documents/Index"><i class="bi bi-file-earmark-text"></i> Documents</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Signing/Create" ? "active" : "")" asp-page="/Signing/Create"><i class="bi bi-pen"></i> Send for Signature</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Pending/Index" ? "active" : "")" asp-page="/Pending/Index"><i class="bi bi-clock-history"></i> Pending Signatures</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Completed/Index" ? "active" : "")" asp-page="/Completed/Index"><i class="bi bi-check-circle"></i> Completed</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Failed/Index" ? "active" : "")" asp-page="/Failed/Index"><i class="bi bi-exclamation-circle"></i> Failed Transactions</a>
-                <a class="@(ViewContext.RouteData.Values["page"]?.ToString() == "/Audit/Index" ? "active" : "")" asp-page="/Audit/Index"><i class="bi bi-journal-text"></i> Audit Trail</a>
+
+                <a class="@(currentPage == "/Index" ? "active" : "")"
+                   asp-page="/Index">
+
+                    <i class="bi bi-grid-1x2-fill"></i>
+                    Dashboard
+
+                </a>
+
+                <a class="@(currentPage == "/Documents/Index" ? "active" : "")"
+                   asp-page="/Documents/Index">
+
+                    <i class="bi bi-file-earmark-text"></i>
+                    Documents
+
+                </a>
+
+                <a class="@(currentPage == "/Signing/Create" ? "active" : "")"
+                   asp-page="/Signing/Create">
+
+                    <i class="bi bi-pen"></i>
+                    Send for Signature
+
+                </a>
+
+                <a class="@(currentPage == "/Pending/Index" ? "active" : "")"
+                   asp-page="/Pending/Index">
+
+                    <i class="bi bi-clock-history"></i>
+                    Pending Signatures
+
+                </a>
+
+                <a class="@(currentPage == "/Completed/Index" ? "active" : "")"
+                   asp-page="/Completed/Index">
+
+                    <i class="bi bi-check-circle"></i>
+                    Completed
+
+                </a>
+
+                <a class="@(currentPage == "/Failed/Index" ? "active" : "")"
+                   asp-page="/Failed/Index">
+
+                    <i class="bi bi-exclamation-circle"></i>
+                    Failed Transactions
+
+                </a>
+
+                <a class="@(currentPage == "/Audit/Index" ? "active" : "")"
+                   asp-page="/Audit/Index">
+
+                    <i class="bi bi-journal-text"></i>
+                    Audit Trail
+
+                </a>
+
+                <!-- FILE CABINET -->
+                <a class="@(currentPage == "/FileCabinet/Index" ? "active" : "")"
+                   asp-page="/FileCabinet/Index">
+
+                    <i class="bi bi-folder2-open"></i>
+                    File Cabinet
+
+                </a>
+
+                <!-- RECYCLE BIN -->
+                <a class="@(currentPage == "/RecycleBin/Index" ? "active" : "")"
+                   asp-page="/RecycleBin/Index">
+
+                    <i class="bi bi-trash3"></i>
+                    Recycle Bin
+
+                </a>
+
             </nav>
+
+            <!-- SIDEBAR FOOTER -->
             <div class="sidebar-bottom">
-                <a href="#" onclick="alert('System updates will be connected in a later step.'); return false;"><i class="bi bi-stars"></i> System Updates</a>
-                <a href="#" onclick="alert('Support information will be configured here.'); return false;"><i class="bi bi-question-circle"></i> Support</a>
+
+                <a href="#"
+                   onclick="alert('System updates will be connected in a later step.'); return false;">
+
+                    <i class="bi bi-stars"></i>
+                    System Updates
+
+                </a>
+
+                <a href="#"
+                   onclick="alert('Support information will be configured here.'); return false;">
+
+                    <i class="bi bi-question-circle"></i>
+                    Support
+
+                </a>
+
             </div>
+
         </aside>
+
+        <!-- MAIN DASHBOARD -->
         <main class="main-panel">
+
+            <!-- TOP HEADER -->
             <header class="topbar">
-                <div><span class="eyebrow">DIGITAL SIGNATURE MANAGEMENT</span><h1>@ViewData["Title"]</h1></div>
-                <div class="topbar-user"><span class="user-avatar">U</span><span>User</span></div>
+
+                <div>
+
+                    <span class="eyebrow">
+                        DIGITAL SIGNATURE MANAGEMENT
+                    </span>
+
+                    <h1>@ViewData["Title"]</h1>
+
+                </div>
+
+                <!-- AUTHENTICATED DOCUWARE USER -->
+                <div class="topbar-user"
+                     title="Signed in as @displayUserName"
+                     aria-label="Signed in as @displayUserName">
+
+                    <!-- DOCUWARE SHORTCUT -->
+                    <a href="https://skhanricoh.docuware.cloud/"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="docuware-shortcut"
+                       title="Open DocuWare"
+                       aria-label="Open DocuWare in a new tab">
+
+                        <i class="bi bi-box-arrow-up-right"></i>
+
+                        <span>DocuWare</span>
+
+                    </a>
+
+                    <!-- USER AVATAR -->
+                    <span class="user-avatar" aria-hidden="true">
+                        @userInitial
+                    </span>
+
+                    <!-- USERNAME -->
+                    <span class="username">
+                        @displayUserName
+                    </span>
+
+                </div>
+
             </header>
+
+            <!-- PAGE CONTENT -->
             <div class="page-content">
+
                 @RenderBody()
+
             </div>
-            <footer class="app-footer">DocuWare Sign <span>•</span> Digital document signing</footer>
+
+            <!-- FOOTER -->
+            <footer class="app-footer">
+
+                DocuWare Sign
+                <span>•</span>
+                Digital document signing
+
+            </footer>
+
         </main>
+
     </div>
+
+    <!-- BOOTSTRAP JAVASCRIPT -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <!-- APPLICATION JAVASCRIPT -->
+    <script src="~/js/site.js"
+            asp-append-version="true"></script>
+
+    <!-- PAGE-SPECIFIC SCRIPTS -->
     @await RenderSectionAsync("Scripts", required: false)
+
 </body>
 </html>

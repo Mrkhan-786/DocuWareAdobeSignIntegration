@@ -1,0 +1,61 @@
+﻿@using DocuWareAdobeSignIntegration.Helpers
+@model FolderCabinetModel
+
+<section class="category-browser" aria-label="Document category folders">
+    <div class="category-browser-heading">
+        <i class="bi bi-folder2-open"></i>
+        <span>@Model.Heading</span>
+    </div>
+
+    <div class="category-filter-row">
+        @foreach (var (folder, index) in Model.Folders.Select((f, n) => (f, n)))
+        {
+            <button type="button"
+                    class="category-filter folder dot-@folder.Css @(index == 0 ? "active" : "") @(folder.Count == 0 && folder.Key != "all" ? "is-empty" : "")"
+                    data-category-filter="@folder.Key"
+                    style="--i:@index">
+                <span class="fv">
+                    <span class="back"></span>
+                    <span class="paper p2"></span>
+                    <span class="paper"></span>
+                    <span class="front">
+                        <span class="mini-dots">
+                            @foreach (var dot in folder.StatusDots)
+                            {
+                                <i class="st-@dot"></i>
+                            }
+                        </span>
+                        <span class="tag">@folder.Count @(folder.Count == 1 ? "file" : "files")</span>
+                    </span>
+                </span>
+                <span class="fname">
+                    <span class="category-filter-dot"></span>
+                    @folder.Label
+                </span>
+                <span class="fmeta">@folder.Count document@(folder.Count == 1 ? "" : "s")</span>
+            </button>
+        }
+    </div>
+</section>
+
+<script>
+    // Clicking a folder shows only the items on the page that carry
+    // data-folder-item and a matching data-category.
+    (function () {
+        var buttons = document.querySelectorAll(".category-filter[data-category-filter]");
+
+        buttons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                buttons.forEach(function (b) { b.classList.remove("active"); });
+                button.classList.add("active");
+
+                var key = (button.dataset.categoryFilter || "all").toLowerCase();
+
+                document.querySelectorAll("[data-folder-item]").forEach(function (el) {
+                    var category = (el.dataset.category || "").toLowerCase();
+                    el.style.display = (key === "all" || category === key) ? "" : "none";
+                });
+            });
+        });
+    })();
+</script>

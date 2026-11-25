@@ -1,0 +1,141 @@
+﻿@page "/Account/Login"
+
+@{
+    Layout = null;
+    ViewData["Title"] = "Sign in | DocuWare Sign";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0c12" />
+
+    <title>@ViewData["Title"]</title>
+
+    <link rel="icon" type="image/svg+xml" href="~/images/docuware-sign-mark.svg" />
+    <link rel="stylesheet"
+          href="/css/auth.css"
+          asp-append-version="true" />
+</head>
+
+<body class="auth-page">
+
+    <main class="auth-shell">
+
+        <!-- Left branding panel (no photo: glow + grid, same as the site theme) -->
+        <section class="auth-brand-panel" aria-label="DocuWare Sign">
+
+            <div class="brand-content">
+
+                <h2 class="brand-welcome">Welcome<br />back,</h2>
+
+                <div class="brand-center">
+
+                    <div class="brand-lockup">
+                        <img class="brand-logo"
+                             src="~/images/docuware-sign-mark.svg"
+                             alt="" />
+                        <span class="brand-name">DocuWare <b>Sign</b></span>
+                    </div>
+
+                    <div class="brand-copy">
+                        <span class="eyebrow">DOCUMENT WORKFLOW &amp; E-SIGNATURES</span>
+                        <h1>Agreements, signed and secured.</h1>
+                        <p>
+                            Manage your documents and signature workflows
+                            in one secure workspace.
+                        </p>
+                    </div>
+
+                    <ul class="brand-points">
+                        <li><span aria-hidden="true">✓</span> Secure e-signatures</li>
+                        <li><span aria-hidden="true">✓</span> Full audit trail</li>
+                        <li><span aria-hidden="true">✓</span> Built on DocuWare</li>
+                    </ul>
+
+                </div>
+
+                <div class="brand-footer">
+                    Secure document workflows for your organisation
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- Right login section -->
+        <section class="auth-main">
+
+            <div class="auth-card">
+
+                <!-- Mobile logo -->
+                <div class="mobile-brand">
+                    <img src="~/images/docuware-sign-mark.svg" alt="" />
+                    <span class="brand-name">DocuWare <b>Sign</b></span>
+                </div>
+
+                <div class="auth-heading">
+                    <span class="eyebrow">WELCOME BACK</span>
+                    <h2>Sign in to your account</h2>
+                    <p>Use your existing DocuWare account to continue.</p>
+                </div>
+
+                <!-- Authentication error -->
+                @if (ViewContext.HttpContext.Request.Query.ContainsKey("error"))
+                {
+                    <div class="alert alert-warning" role="alert">
+                        Sign-in was unsuccessful.
+                        Please try again or contact your DocuWare administrator.
+                    </div>
+                }
+
+                <!-- Security message -->
+                <div class="secure-note">
+                    <span class="secure-icon" aria-hidden="true">✓</span>
+                    <span>Secure sign-in powered by DocuWare</span>
+                </div>
+
+                <!-- DocuWare authentication -->
+                <a class="primary-button"
+                   href="/api/docuware/login?returnUrl=%2F">
+                    <span>Sign in with DocuWare</span>
+                    <span class="button-arrow" aria-hidden="true">→</span>
+                </a>
+
+                <p class="auth-help">
+                    You'll be redirected to DocuWare to verify your identity.
+                    Your password is never stored by DocuWare Sign.
+                </p>
+
+                <div class="auth-divider">
+                    <span>NEW TO DOCUWARE SIGN?</span>
+                </div>
+
+                <!-- Registration / access request -->
+                <a class="secondary-button"
+                   href="/Account/Register">
+                    Request access
+                </a>
+
+                <p class="auth-bottom">
+                    Having trouble signing in?
+                    Contact your DocuWare administrator.
+                </p>
+
+            </div>
+
+            <!-- Footer -->
+            <footer class="page-footer">
+                © @DateTime.Now.Year DocuWare Sign
+                <span>·</span>
+                Secure document management
+            </footer>
+
+        </section>
+
+    </main>
+
+</body>
+</html>

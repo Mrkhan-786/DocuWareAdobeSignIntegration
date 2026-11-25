@@ -1,0 +1,381 @@
+﻿@page
+@model DocuWareAdobeSignIntegration.Pages.RecycleBin.IndexModel
+
+@{
+    ViewData["Title"] = "Recycle Bin";
+}
+
+<!-- PAGE HEADING -->
+
+<div class="section-heading">
+    <div>
+        <h2>
+            <i class="bi bi-trash me-2"></i>
+            Recycle Bin
+        </h2>
+
+        <p>
+            Documents moved out of your File Cabinet are stored here
+            until you permanently delete them.
+        </p>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+
+        @if (Model.DeletedDocuments.Any())
+        {
+            <form method="post"
+                  asp-page="/RecycleBin/Index"
+                  asp-page-handler="RestoreAll"
+                  onsubmit="return confirm('Restore all documents in your Recycle Bin to your File Cabinet?');">
+
+                <button type="submit"
+                        class="btn btn-success btn-sm">
+
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Restore All
+
+                </button>
+
+            </form>
+        }
+
+        <a asp-page="/FileCabinet/Index"
+           class="btn btn-outline-primary btn-sm">
+
+            <i class="bi bi-folder2-open me-1"></i>
+            Back to File Cabinet
+
+        </a>
+
+    </div>
+</div>
+
+<!-- NOTIFICATIONS -->
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        @TempData["SuccessMessage"]
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        @TempData["ErrorMessage"]
+    </div>
+}
+
+<!-- RECYCLE BIN STATISTICS -->
+
+<section class="stats-grid">
+
+    <article class="stat-card red">
+        <div class="stat-icon">
+            <i class="bi bi-trash"></i>
+        </div>
+
+        <div>
+            <span>Documents in Recycle Bin</span>
+            <strong>@Model.TotalDeletedDocuments</strong>
+        </div>
+    </article>
+
+    <article class="stat-card blue">
+        <div class="stat-icon">
+            <i class="bi bi-file-earmark-pdf"></i>
+        </div>
+
+        <div>
+            <span>Locally stored PDFs</span>
+            <strong>@Model.LocallySavedDocuments</strong>
+        </div>
+    </article>
+
+</section>
+
+<!-- PERMANENT DELETION NOTICE -->
+
+<div class="alert alert-warning mt-3" role="alert">
+
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+
+    <strong>Permanent deletion cannot be undone.</strong>
+
+    Permanently deleting a document removes its application workflow
+    record and locally stored signed PDF. It does not delete the
+    original document from DocuWare or the agreement from Adobe Sign.
+
+</div>
+
+<!-- RECYCLED DOCUMENTS -->
+
+<div class="section-heading mt-4">
+
+    <div>
+        <h2>Deleted documents</h2>
+
+        <p>
+            Review the documents you have moved out of your File Cabinet.
+        </p>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+
+        @if (Model.DeletedDocuments.Any())
+        {
+            <form method="post"
+                  asp-page="/RecycleBin/Index"
+                  asp-page-handler="PermanentlyDeleteAll"
+                  onsubmit="return confirm('PERMANENTLY DELETE ALL documents in your Recycle Bin? This removes their application workflow records and locally stored signed PDFs. This action cannot be undone.');">
+
+                <button type="submit"
+                        class="btn btn-danger btn-sm">
+
+                    <i class="bi bi-trash3-fill me-1"></i>
+                    Delete All
+
+                </button>
+
+            </form>
+        }
+
+        <a asp-page="/RecycleBin/Index"
+           class="btn btn-outline-primary btn-sm">
+
+            <i class="bi bi-arrow-clockwise me-1"></i>
+            Refresh
+
+        </a>
+
+    </div>
+
+</div>
+
+@if (Model.DeletedDocuments.Any())
+{
+    <div class="docuware-card-grid">
+
+        @foreach (var (document, cardIndex) in Model.DeletedDocuments
+            .Select((item, index) => (item, index)))
+        {
+            var isLocallySaved =
+                !string.IsNullOrWhiteSpace(document.SignedPdfPath);
+
+            var isArchived = document.IsArchived;
+
+            <article class="docuware-card"
+                     style="--i:@cardIndex">
+
+                <!-- CARD HEADER -->
+
+                <div class="docuware-card-header">
+
+                    <div class="docuware-file-icon">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+
+                    <div class="docuware-file-info">
+
+                        <h3>@document.FileName</h3>
+
+                        <span>
+                            Agreement ID:
+                            @document.AgreementId
+                        </span>
+
+                        <span>
+                            DocuWare Document ID:
+                            @(string.IsNullOrWhiteSpace(document.OriginalDocumentId)
+                                ? "Not available"
+                                : document.OriginalDocumentId)
+                        </span>
+
+                        <div>
+                            <span class="document-category-badge category-default">
+                                Recycled
+                            </span>
+                        </div>
+
+                    </div>
+
+                    <span class="document-status st-failed">
+                        <i class="sdot"></i>
+                        In Recycle Bin
+                    </span>
+
+                </div>
+
+                <hr />
+
+                <!-- DELETION DETAILS -->
+
+                <div class="docuware-details">
+
+                    <div>
+                        <span>Date moved to Recycle Bin</span>
+
+                        <strong>
+                            @(document.DeletedAtUtc?
+                                .ToLocalTime()
+                                .ToString("dd MMM yyyy, HH:mm")
+                                ?? "Unknown")
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Original document status</span>
+
+                        <strong>
+                            @document.Status
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="docuware-details mt-2">
+
+                    <div>
+                        <span>Local PDF</span>
+
+                        <strong>
+                            @if (isLocallySaved)
+                            {
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                    Saved locally
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">
+                                    Not saved locally
+                                </span>
+                            }
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>File size</span>
+
+                        <strong>
+                            @DocuWareAdobeSignIntegration.Pages.FileCabinet.IndexModel.FormatFileSize(
+                                document.SignedPdfSizeBytes)
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="docuware-details mt-2">
+
+                    <div>
+                        <span>DocuWare archive</span>
+
+                        <strong>
+                            @if (isArchived)
+                            {
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                    Saved to DocuWare
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">
+                                    Not archived
+                                </span>
+                            }
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Archived date</span>
+
+                        <strong>
+                            @(document.ArchivedAtUtc?
+                                .ToLocalTime()
+                                .ToString("dd MMM yyyy, HH:mm")
+                                ?? "Not archived")
+                        </strong>
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <!-- DOCUMENT ACTIONS -->
+
+                <div class="d-flex flex-wrap gap-2">
+
+                    <!-- RESTORE -->
+
+                    <form method="post"
+                          asp-page="/RecycleBin/Index"
+                          asp-page-handler="Restore"
+                          asp-route-id="@document.Id"
+                          onsubmit="return confirm('Restore this document to your File Cabinet?');">
+
+                        <button type="submit"
+                                class="btn btn-success btn-sm">
+
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                            Restore
+
+                        </button>
+
+                    </form>
+
+                    <!-- PERMANENT DELETE -->
+
+                    <form method="post"
+                          asp-page="/RecycleBin/Index"
+                          asp-page-handler="PermanentlyDelete"
+                          asp-route-id="@document.Id"
+                          onsubmit="return confirm('PERMANENTLY DELETE this document? This will remove its application record and locally stored signed PDF. This action cannot be undone.');">
+
+                        <button type="submit"
+                                class="btn btn-danger btn-sm">
+
+                            <i class="bi bi-trash3-fill me-1"></i>
+                            Permanently Delete
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </article>
+        }
+
+    </div>
+}
+else
+{
+    <div class="content-panel">
+
+        <div class="empty-state">
+
+            <i class="bi bi-trash"></i>
+
+            <h3>Your Recycle Bin is empty</h3>
+
+            <p>
+                Documents that you move out of your File Cabinet
+                will appear here.
+            </p>
+
+            <a asp-page="/FileCabinet/Index"
+               class="btn btn-primary mt-3">
+
+                <i class="bi bi-folder2-open me-1"></i>
+                Return to File Cabinet
+
+            </a>
+
+        </div>
+
+    </div>
+}

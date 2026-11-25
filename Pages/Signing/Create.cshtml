@@ -1,16 +1,2754 @@
 @page
+@model DocuWareAdobeSignIntegration.Pages.Signing.SendForSignatureModel
+
 @{
     ViewData["Title"] = "Send for Signature";
+
+    var initialSignerCount = Math.Clamp(Model.Signers?.Count ?? 1, 1, 10);
+
+    var hasPendingUpload =
+        !string.IsNullOrWhiteSpace(Model.PendingUploadToken) &&
+        !string.IsNullOrWhiteSpace(Model.PendingUploadFileName);
 }
-<div class="page-intro"><div><h2>Create a signing request</h2><p>Choose a DocuWare document and provide the recipient details.</p></div></div>
-<form class="content-panel" onsubmit="event.preventDefault(); alert('The form is ready for backend integration. No agreement has been sent.');">
-    <h3 class="panel-title">1. Selected document</h3>
-    <div class="notice"><i class="bi bi-file-earmark-pdf"></i><div><b>No document selected</b><p>First find and select a document from the Documents page.</p><a asp-page="/Documents/Index">Browse DocuWare documents</a></div></div>
-    <h3 class="panel-title mt-4">2. Signer details</h3>
-    <div class="row g-3"><div class="col-md-6"><label class="form-label">Signer full name</label><input class="form-control" required placeholder="Full name" /></div><div class="col-md-6"><label class="form-label">Email address</label><input class="form-control" type="email" required placeholder="name@example.com" /></div></div>
-    <h3 class="panel-title mt-4">3. Invitation details</h3>
-    <div class="mb-3"><label class="form-label">Email subject</label><input class="form-control" value="Please sign this document" /></div>
-    <div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" rows="3" placeholder="Add instructions for the signer..."></textarea></div>
-    <div class="mb-4"><label class="form-label">Signing order</label><select class="form-select"><option>Sequential</option><option>Parallel</option></select></div>
-    <button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Send for signature</button>
-</form>
+
+<style>
+    .signing-page {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+        .signing-page .signing-header {
+            margin-bottom: 22px;
+        }
+
+            .signing-page .signing-header h2 {
+                margin-bottom: 8px;
+                color: #fff;
+            }
+
+            .signing-page .signing-header p {
+                margin-bottom: 0;
+                color: #a3a8bd;
+            }
+
+        .signing-page .sp-steps {
+            width: 100%;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .signing-page .sp-steps-title {
+            font-size: 15px;
+            font-weight: 650;
+            margin-bottom: 22px;
+            color: #fff;
+        }
+
+        .signing-page .sp-steps-list {
+            display: grid !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            align-items: start;
+            gap: 14px;
+            width: 100%;
+        }
+
+        .signing-page .sp-step {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 9px;
+            min-width: 0;
+            text-align: center;
+        }
+
+        .signing-page .sp-step-number {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 40px;
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(255,255,255,.20);
+            border-radius: 50%;
+            background: rgba(255,255,255,.07);
+            color: #c4c7d6;
+            font-size: 14px;
+            font-weight: 700;
+            transition: all .3s ease;
+        }
+
+        .signing-page .sp-step-label {
+            display: block;
+            max-width: 100%;
+            color: #a3a8bd;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        .signing-page .sp-step.active .sp-step-number {
+            background: rgba(155,123,255,.24);
+            border-color: #9b7bff;
+            color: #d5c7ff;
+            box-shadow: 0 0 0 5px rgba(155,123,255,.10), 0 0 20px rgba(155,123,255,.15);
+        }
+
+        .signing-page .sp-step.active .sp-step-label {
+            color: #c9b8ff;
+        }
+
+        .signing-page .sp-step.completed .sp-step-number {
+            background: rgba(46,204,143,.17);
+            border-color: rgba(46,204,143,.65);
+            color: #86efac;
+        }
+
+        .signing-page .sp-step.completed .sp-step-label {
+            color: #86efac;
+        }
+
+        .signing-page .signing-card {
+            width: 100%;
+            min-width: 0;
+            padding: 26px;
+        }
+
+            .signing-page .signing-card section {
+                width: 100%;
+                min-width: 0;
+            }
+
+        .signing-page .sp-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+            .signing-page .sp-heading h4 {
+                margin: 0 0 6px;
+                color: #fff;
+                font-size: 18px;
+                font-weight: 650;
+            }
+
+            .signing-page .sp-heading p {
+                margin: 0;
+                color: #a3a8bd;
+                font-size: 13px;
+            }
+
+        .signing-page .sp-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 40px;
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(155,123,255,.22);
+            border-radius: 12px;
+            background: rgba(155,123,255,.12);
+            color: #c9b8ff;
+            font-size: 19px;
+        }
+
+        .signing-page .upload-zone {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 11px;
+            position: relative;
+            width: 100%;
+            min-height: 205px;
+            padding: 26px;
+            border: 1px dashed rgba(167,139,250,.48);
+            border-radius: 16px;
+            background: rgba(255,255,255,.035);
+            cursor: default;
+            transition: background .25s ease, border-color .25s ease, box-shadow .25s ease;
+        }
+
+            .signing-page .upload-zone:hover,
+            .signing-page .upload-zone.drag-over {
+                border-color: #a78bfa;
+                background: rgba(139,92,246,.09);
+                box-shadow: inset 0 0 25px rgba(139,92,246,.05);
+            }
+
+        .signing-page .upload-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border: 1px solid rgba(155,123,255,.25);
+            border-radius: 14px;
+            background: rgba(155,123,255,.13);
+            color: #c9b8ff;
+            font-size: 24px;
+        }
+
+        .signing-page .upload-zone h5 {
+            margin: 0;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 650;
+        }
+
+        .signing-page .upload-zone p {
+            margin: 0;
+            color: #a3a8bd;
+            font-size: 13px;
+        }
+
+        .signing-page .upload-zone input[type="file"] {
+            display: none !important;
+        }
+
+        .signing-page .upload-browse-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            margin-top: 5px;
+            padding: 10px 17px;
+            border-radius: 11px;
+            color: #c9b8ff;
+            background: rgba(155,123,255,.09);
+            border: 1px solid rgba(155,123,255,.45);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .25s ease, border-color .25s ease, transform .25s ease;
+        }
+
+            .signing-page .upload-browse-btn:hover {
+                color: #fff;
+                background: rgba(155,123,255,.22);
+                border-color: #9b7bff;
+                transform: translateY(-2px);
+            }
+
+        .signing-page .selected-file {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 13px 16px;
+            border: 1px solid rgba(46,204,143,.30);
+            border-radius: 12px;
+            background: rgba(46,204,143,.08);
+            color: #8ee8c4;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+            .signing-page .selected-file i {
+                flex-shrink: 0;
+                font-size: 19px;
+            }
+
+        .signing-page #selectedFileName {
+            overflow-wrap: anywhere;
+        }
+
+        .signing-page .upload-help,
+        .signing-page .anchor-help {
+            display: block;
+            margin-top: 8px;
+            color: #a3a8bd;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .signing-page .file-error {
+            display: block;
+            margin-top: 8px;
+            color: #ff8a95;
+            font-size: 12px;
+        }
+
+        .signing-page .upload-zone.upload-invalid {
+            border-color: rgba(255,93,108,.8);
+            background: rgba(255,93,108,.06);
+        }
+
+        .signing-page .sp-divider {
+            width: 100%;
+            margin: 30px 0;
+            border: 0;
+            border-top: 1px solid rgba(255,255,255,.12);
+            opacity: 1;
+        }
+
+        .signing-page .form-label {
+            color: #c4c7d6;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .signing-page .form-control,
+        .signing-page .form-select {
+            width: 100%;
+            min-width: 0;
+            color: #f3f4f8;
+            background-color: rgba(255,255,255,.05);
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 12px;
+            padding: 11px 13px;
+            font-size: 13px;
+        }
+
+            .signing-page .form-control:focus,
+            .signing-page .form-select:focus {
+                color: #fff;
+                background-color: rgba(255,255,255,.08);
+                border-color: rgba(155,123,255,.75);
+                box-shadow: 0 0 0 3px rgba(155,123,255,.15);
+            }
+
+            .signing-page .form-control::placeholder {
+                color: #858ba0;
+            }
+
+            .signing-page .form-select option {
+                color: #222;
+                background: #fff;
+            }
+
+        .signing-page input[type="date"].form-control {
+            color-scheme: dark;
+            min-height: 43px;
+            cursor: pointer;
+        }
+
+            .signing-page input[type="date"].form-control::-webkit-calendar-picker-indicator {
+                cursor: pointer;
+                filter: invert(1);
+                opacity: .8;
+            }
+
+        .signing-page textarea.form-control {
+            resize: vertical;
+            min-height: 110px;
+        }
+
+        .signing-page .adobe-panel {
+            width: 100%;
+            padding: 20px;
+            border: 1px solid rgba(155,123,255,.22);
+            border-radius: 15px;
+            background: rgba(155,123,255,.055);
+        }
+
+            .signing-page .adobe-panel h5 {
+                margin: 0 0 8px;
+                color: #fff;
+                font-size: 15px;
+                font-weight: 650;
+            }
+
+            .signing-page .adobe-panel > p {
+                margin: 0 0 18px;
+                color: #a3a8bd;
+                font-size: 12px;
+                line-height: 1.6;
+            }
+
+        .signing-page .signer-card {
+            width: 100%;
+            margin-bottom: 16px;
+            padding: 19px;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 14px;
+            background: rgba(255,255,255,.035);
+        }
+
+            .signing-page .signer-card:last-child {
+                margin-bottom: 0;
+            }
+
+        .signing-page .signer-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+            .signing-page .signer-card-header h6 {
+                margin: 0;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+        .signing-page .signer-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 27px;
+            height: 27px;
+            margin-right: 8px;
+            border-radius: 8px;
+            color: #d5c7ff;
+            background: rgba(155,123,255,.17);
+        }
+
+        .signing-page .signer-remove {
+            color: #ff9ba4;
+            background: rgba(255,93,108,.08);
+            border: 1px solid rgba(255,93,108,.25);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+            .signing-page .signer-remove:hover {
+                background: rgba(255,93,108,.17);
+            }
+
+            .signing-page .signer-remove:disabled {
+                opacity: .35;
+                cursor: not-allowed;
+            }
+
+        .signing-page .date-value-panel {
+            padding: 13px;
+            border: 1px solid rgba(155,123,255,.18);
+            border-radius: 12px;
+            background: rgba(155,123,255,.045);
+        }
+
+            .signing-page .date-value-panel .form-label {
+                color: #d5c7ff;
+            }
+
+        .signing-page .review-panel {
+            width: 100%;
+            padding: 22px;
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 16px;
+            background: rgba(255,255,255,.045);
+        }
+
+            .signing-page .review-panel h6 {
+                margin: 0 0 15px;
+                color: #fff;
+                font-size: 15px;
+                font-weight: 700;
+            }
+
+        .signing-page .review-row {
+            display: grid;
+            grid-template-columns: minmax(120px, .75fr) minmax(0, 1.25fr);
+            align-items: center;
+            gap: 16px;
+            width: 100%;
+            padding: 13px 0;
+            border-bottom: 1px solid rgba(255,255,255,.09);
+        }
+
+            .signing-page .review-row:last-child {
+                border-bottom: 0;
+            }
+
+            .signing-page .review-row span:first-child {
+                color: #a3a8bd;
+                font-size: 13px;
+                font-weight: 600;
+            }
+
+            .signing-page .review-row span:last-child {
+                min-width: 0;
+                color: #f3f4f8;
+                font-size: 13px;
+                text-align: right;
+                overflow-wrap: anywhere;
+            }
+
+        .signing-page .review-signer {
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255,255,255,.09);
+        }
+
+            .signing-page .review-signer:last-child {
+                border-bottom: 0;
+            }
+
+            .signing-page .review-signer h6 {
+                margin-bottom: 10px;
+                color: #c9b8ff;
+            }
+
+            .signing-page .review-signer p {
+                margin: 5px 0;
+                color: #f3f4f8;
+                font-size: 13px;
+                overflow-wrap: anywhere;
+            }
+
+            .signing-page .review-signer strong {
+                color: #a3a8bd;
+                font-weight: 600;
+            }
+
+        .signing-page .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,.10);
+        }
+
+            .signing-page .form-actions .btn {
+                min-height: 42px;
+                padding: 10px 19px;
+                font-weight: 600;
+            }
+
+            .signing-page .form-actions .btn-primary {
+                color: #fff;
+                background: linear-gradient(135deg, #7b6bff, #4c8dff);
+                border: 0;
+            }
+
+                .signing-page .form-actions .btn-primary:disabled {
+                    opacity: .7;
+                    cursor: wait;
+                }
+
+        .signing-page .text-danger,
+        .signing-page .field-validation-error {
+            color: #ff8a95 !important;
+            font-size: 12px;
+        }
+
+        .signing-page .alert {
+            border-radius: 13px;
+        }
+
+        .signing-page .sender-note {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(46,204,143,.2);
+            border-radius: 10px;
+            background: rgba(46,204,143,.06);
+            color: #a6e9cf;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+    @@media (max-width: 760px) {
+        .signing-page .sp-steps-list {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            row-gap: 22px;
+        }
+
+        .signing-page .signing-card {
+            padding: 18px;
+        }
+
+        .signing-page .sp-steps {
+            padding: 19px;
+        }
+
+        .signing-page .review-row {
+            grid-template-columns: 1fr;
+            gap: 5px;
+            align-items: start;
+        }
+
+            .signing-page .review-row span:last-child {
+                text-align: left;
+            }
+    }
+
+    @@media (max-width: 420px) {
+        .signing-page .sp-steps-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .signing-page .upload-zone {
+            padding: 19px;
+        }
+
+        .signing-page .form-actions {
+            flex-direction: column-reverse;
+            align-items: stretch;
+        }
+
+            .signing-page .form-actions .btn {
+                width: 100%;
+            }
+
+        .signing-page .signer-card {
+            padding: 14px;
+        }
+    }
+</style>
+
+<div class="signing-page">
+
+    <div class="signing-header">
+        <h2>Create a signing request</h2>
+        <p>
+            Upload your document, add one or more signers and prepare
+            your Adobe Acrobat Sign agreement.
+        </p>
+    </div>
+
+    <!-- FIVE-STEP PROGRESS INDICATOR -->
+
+    <div class="content-panel sp-steps">
+
+        <div class="sp-steps-title">Signing process</div>
+
+        <div class="sp-steps-list">
+
+            <div class="sp-step active" id="progressStep1">
+                <div class="sp-step-number">1</div>
+                <div class="sp-step-label">Upload PDF</div>
+            </div>
+
+            <div class="sp-step" id="progressStep2">
+                <div class="sp-step-number">2</div>
+                <div class="sp-step-label">Document Details</div>
+            </div>
+
+            <div class="sp-step" id="progressStep3">
+                <div class="sp-step-number">3</div>
+                <div class="sp-step-label">Invitation Details</div>
+            </div>
+
+            <div class="sp-step" id="progressStep4">
+                <div class="sp-step-number">4</div>
+                <div class="sp-step-label">Adobe Sign</div>
+            </div>
+
+            <div class="sp-step" id="progressStep5">
+                <div class="sp-step-number">5</div>
+                <div class="sp-step-label">Review and Send</div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="content-panel signing-card">
+
+        <form id="signingForm"
+              method="post"
+              enctype="multipart/form-data">
+
+            @Html.AntiForgeryToken()
+
+            <input type="hidden"
+                   id="PendingUploadToken"
+                   name="PendingUploadToken"
+                   value="@Model.PendingUploadToken" />
+
+            <input type="hidden"
+                   id="PendingUploadFileName"
+                   name="PendingUploadFileName"
+                   value="@Model.PendingUploadFileName" />
+
+            <div asp-validation-summary="ModelOnly"
+                 class="text-danger mb-3"></div>
+
+            <!-- STEP 1: UPLOAD PDF -->
+
+            <section id="uploadSection">
+
+                <div class="sp-heading">
+
+                    <div class="sp-icon">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                    </div>
+
+                    <div>
+                        <h4>1. Upload PDF</h4>
+                        <p>
+                            Choose the document you want to send for signature.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="upload-zone" id="uploadZone">
+
+                    <div class="upload-icon">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+
+                    <h5>Drag and drop your PDF here</h5>
+
+                    <p>Or browse your computer to select a document.</p>
+
+                    <button type="button"
+                            class="upload-browse-btn"
+                            id="chooseFileButton">
+
+                        <i class="bi bi-folder2-open"></i>
+                        Browse for Documents
+
+                    </button>
+
+                    <input asp-for="UploadedFile"
+                           type="file"
+                           hidden
+                           aria-label="Choose a PDF document" />
+
+                </div>
+
+                <div class="selected-file"
+                     id="selectedFile"
+                     style="@(hasPendingUpload ? "display:flex;" : "display:none;")">
+
+                    <i class="bi bi-file-earmark-pdf"></i>
+
+                    <span id="selectedFileName">
+                        @(hasPendingUpload ? Model.PendingUploadFileName : "")
+                    </span>
+
+                </div>
+
+                <span id="fileError"
+                      class="file-error"
+                      role="alert"></span>
+
+                <span asp-validation-for="UploadedFile"
+                      class="text-danger"></span>
+
+                <small class="upload-help">
+                    Any valid PDF document is accepted, including scanned
+                    and image-based PDFs. Maximum file size: 10 MB.
+                    The original unsigned document will be uploaded to
+                    DocuWare before the Adobe Sign agreement is created.
+                </small>
+
+            </section>
+
+            <hr class="sp-divider" />
+
+            <!-- STEP 2: DOCUMENT DETAILS -->
+
+            <section id="documentDetailsSection">
+
+                <div class="sp-heading">
+
+                    <div class="sp-icon">
+                        <i class="bi bi-file-earmark-text"></i>
+                    </div>
+
+                    <div>
+                        <h4>2. Document Details</h4>
+                        <p>
+                            Enter the document information and recipient contact details.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+
+                        <label asp-for="RequestDate" class="form-label">
+                            Request Date <span class="text-danger">*</span>
+                        </label>
+
+                        <input asp-for="RequestDate"
+                               type="date"
+                               class="form-control"
+                               required />
+
+                        <span asp-validation-for="RequestDate"
+                              class="text-danger"></span>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label asp-for="DocumentType" class="form-label">
+                            Document Type <span class="text-danger">*</span>
+                        </label>
+
+                        <input asp-for="DocumentType"
+                               class="form-control"
+                               placeholder="Enter document type"
+                               required />
+
+                        <span asp-validation-for="DocumentType"
+                              class="text-danger"></span>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label asp-for="RecipientCompany" class="form-label">
+                            Recipient Company <span class="text-danger">*</span>
+                        </label>
+
+                        <input asp-for="RecipientCompany"
+                               class="form-control"
+                               placeholder="Enter the recipient's company"
+                               required />
+
+                        <span asp-validation-for="RecipientCompany"
+                              class="text-danger"></span>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label asp-for="RecipientEmail" class="form-label">
+                            Recipient Email Address <span class="text-danger">*</span>
+                        </label>
+
+                        <input asp-for="RecipientEmail"
+                               type="email"
+                               class="form-control"
+                               maxlength="320"
+                               placeholder="contact@example.com"
+                               required />
+
+                        <span asp-validation-for="RecipientEmail"
+                              class="text-danger"></span>
+
+                        <small class="anchor-help">
+                            Contact email associated with the recipient company.
+                            Signing invitations are sent to the signer email
+                            addresses configured in the Adobe Sign step.
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+            <hr class="sp-divider" />
+
+            <!-- STEP 3: INVITATION DETAILS -->
+
+            <section id="invitationDetailsSection">
+
+                <div class="sp-heading">
+
+                    <div class="sp-icon">
+                        <i class="bi bi-envelope-paper"></i>
+                    </div>
+
+                    <div>
+                        <h4>3. Invitation Details</h4>
+                        <p>
+                            Customise the email that Adobe Sign will send
+                            to the signers.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label asp-for="EmailSubject" class="form-label">
+                        Email Subject <span class="text-danger">*</span>
+                    </label>
+
+                    <input asp-for="EmailSubject"
+                           class="form-control"
+                           placeholder="Enter email subject"
+                           required />
+
+                    <span asp-validation-for="EmailSubject"
+                          class="text-danger"></span>
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label asp-for="Message" class="form-label">
+                        Message to Signers
+                    </label>
+
+                    <textarea asp-for="Message"
+                              class="form-control"
+                              rows="4"
+                              placeholder="Enter a message or instructions for the signers..."></textarea>
+
+                    <span asp-validation-for="Message"
+                          class="text-danger"></span>
+
+                </div>
+
+            </section>
+
+            <hr class="sp-divider" />
+
+            <!-- STEP 4: ADOBE SIGN CONFIGURATION -->
+
+            <section id="adobeSignSection">
+
+                <div class="sp-heading">
+
+                    <div class="sp-icon">
+                        <i class="bi bi-pen"></i>
+                    </div>
+
+                    <div>
+                        <h4>4. Adobe Sign</h4>
+                        <p>
+                            Configure your signers, signing order and automatic
+                            signature field placement.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="adobe-panel">
+
+                    <h5>
+                        <i class="bi bi-pen me-2"></i>
+                        Adobe Acrobat Sign — Signer Configuration
+                    </h5>
+
+                    <p>
+                        Add the people who must sign this document.
+                        The account user creating this request is the sender
+                        and is not automatically added as a signer.
+                    </p>
+
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-md-6">
+
+                            <label for="signerCount" class="form-label">
+                                Number of Signers <span class="text-danger">*</span>
+                            </label>
+
+                            <select id="signerCount"
+                                    name="SignerCount"
+                                    class="form-select">
+
+                                @for (var i = 1; i <= 10; i++)
+                                {
+                                    if (i == initialSignerCount)
+                                    {
+                                        <option value="@i" selected>
+                                            @i @(i == 1 ? "Signer" : "Signers")
+                                        </option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@i">
+                                            @i @(i == 1 ? "Signer" : "Signers")
+                                        </option>
+                                    }
+                                }
+
+                            </select>
+
+                            <small class="anchor-help">
+                                You can add between 1 and 10 signers.
+                            </small>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <label asp-for="SigningOrderMode" class="form-label">
+                                Signing Order <span class="text-danger">*</span>
+                            </label>
+
+                            <select asp-for="SigningOrderMode"
+                                    class="form-select"
+                                    required>
+
+                                <option value="Sequential">
+                                    Sequential — one signer after another
+                                </option>
+
+                                <option value="Parallel">
+                                    Parallel — all signers at the same time
+                                </option>
+
+                            </select>
+
+                            <span asp-validation-for="SigningOrderMode"
+                                  class="text-danger"></span>
+
+                        </div>
+
+                    </div>
+
+                    <div id="signersContainer">
+
+                        @for (var i = 0; i < initialSignerCount; i++)
+                        {
+                            var signer = Model.Signers != null &&
+                                         Model.Signers.Count > i
+                                ? Model.Signers[i]
+                                : new DocuWareAdobeSignIntegration.Pages.Signing.SignerFormInput();
+
+                            <div class="signer-card" data-signer-index="@i">
+
+                                <div class="signer-card-header">
+
+                                    <h6>
+                                        <span class="signer-number">@(i + 1)</span>
+                                        Signer @(i + 1)
+                                    </h6>
+
+                                    <button type="button"
+                                            class="signer-remove"
+                                            data-remove-signer
+                                        @(initialSignerCount == 1 ? "disabled" : null)>
+
+                                        <i class="bi bi-trash me-1"></i>
+                                        Remove
+
+                                    </button>
+
+                                </div>
+
+                                <div class="row g-3">
+
+                                    <div class="col-md-6">
+
+                                        <label class="form-label"
+                                               for="Signers_@(i)__Name">
+
+                                            Full Name <span class="text-danger">*</span>
+
+                                        </label>
+
+                                        <input name="Signers[@i].Name"
+                                               id="Signers_@(i)__Name"
+                                               value="@signer.Name"
+                                               class="form-control signer-name"
+                                               type="text"
+                                               maxlength="200"
+                                               placeholder="Enter signer's full name"
+                                               required />
+
+                                        <span class="text-danger"
+                                              data-valmsg-for="Signers[@i].Name"
+                                              data-valmsg-replace="true"></span>
+
+                                    </div>
+
+                                    <div class="col-md-6">
+
+                                        <label class="form-label"
+                                               for="Signers_@(i)__Email">
+
+                                            Email Address <span class="text-danger">*</span>
+
+                                        </label>
+
+                                        <input name="Signers[@i].Email"
+                                               id="Signers_@(i)__Email"
+                                               value="@signer.Email"
+                                               class="form-control signer-email"
+                                               type="email"
+                                               maxlength="320"
+                                               placeholder="name@example.com"
+                                               required />
+
+                                        <span class="text-danger"
+                                              data-valmsg-for="Signers[@i].Email"
+                                              data-valmsg-replace="true"></span>
+
+                                    </div>
+
+                                </div>
+
+                                <hr class="sp-divider" />
+
+                                <h6 class="mb-3" style="color:#c9b8ff;">
+                                    <i class="bi bi-crosshair me-2"></i>
+                                    Automatic Field Placement
+                                </h6>
+
+                                <p class="anchor-help mb-3">
+                                    Enter the exact text printed in the PDF beside
+                                    each field. These anchors must exist in the
+                                    uploaded document.
+                                </p>
+
+                                <div class="row g-3">
+
+                                    <div class="col-md-12">
+
+                                        <label class="form-label"
+                                               for="Signers_@(i)__SignatureAnchorText">
+
+                                            Signature Anchor Text
+                                            <span class="text-danger">*</span>
+
+                                        </label>
+
+                                        <input name="Signers[@i].SignatureAnchorText"
+                                               id="Signers_@(i)__SignatureAnchorText"
+                                               value="@signer.SignatureAnchorText"
+                                               class="form-control signer-signature-anchor"
+                                               type="text"
+                                               maxlength="150"
+                                               placeholder="Example: SIGNER 1 SIGNATURE"
+                                               required />
+
+                                        <small class="anchor-help">
+                                            Exact wording printed beside this
+                                            signer's signature location.
+                                        </small>
+
+                                    </div>
+
+                                    <div class="col-md-6">
+
+                                        <label class="form-label"
+                                               for="Signers_@(i)__NameAnchorText">
+
+                                            Name Anchor Text
+                                            <span class="text-danger">*</span>
+
+                                        </label>
+
+                                        <input name="Signers[@i].NameAnchorText"
+                                               id="Signers_@(i)__NameAnchorText"
+                                               value="@signer.NameAnchorText"
+                                               class="form-control signer-name-anchor"
+                                               type="text"
+                                               maxlength="150"
+                                               placeholder="Example: SIGNER 1 NAME:"
+                                               required />
+
+                                        <small class="anchor-help">
+                                            Exact wording printed beside the
+                                            full-name field.
+                                        </small>
+
+                                    </div>
+
+                                    <!-- DATE ANCHOR TEXT -->
+
+                                    <div class="col-md-6">
+
+                                        <label class="form-label"
+                                               for="Signers_@(i)__DateAnchorText">
+
+                                            <i class="bi bi-crosshair me-1"></i>
+                                            Date Field Anchor Text
+                                            <span class="text-danger">*</span>
+
+                                        </label>
+
+                                        <input name="Signers[@i].DateAnchorText"
+                                               id="Signers_@(i)__DateAnchorText"
+                                               value="@signer.DateAnchorText"
+                                               class="form-control signer-date-anchor"
+                                               type="text"
+                                               maxlength="150"
+                                               placeholder="Example: SIGNER 1 DATE:"
+                                               required />
+
+                                        <small class="anchor-help">
+                                            Enter the exact date label printed in
+                                            your PDF. Adobe uses this text to
+                                            locate the date field.
+                                        </small>
+
+                                    </div>
+
+                                    <!-- NEW DATE PICKER -->
+
+                                    <div class="col-md-6">
+
+                                        <div class="date-value-panel">
+
+                                            <label class="form-label"
+                                                   for="Signers_@(i)__DateFieldValue">
+
+                                                <i class="bi bi-calendar-event me-1"></i>
+                                                Date to Prefill
+                                                <span class="text-muted">(Optional)</span>
+
+                                            </label>
+
+                                            <input name="Signers[@i].DateFieldValue"
+                                                   id="Signers_@(i)__DateFieldValue"
+                                                   value="@signer.DateFieldValue"
+                                                   class="form-control signer-date-value"
+                                                   type="date"
+                                                   aria-label="Select a date to prefill for signer @(i + 1)" />
+
+                                            <small class="anchor-help">
+                                                Select a date to prefill in this
+                                                signer's Adobe date field. Leave
+                                                blank when the signer should enter
+                                                the date themselves.
+                                            </small>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        }
+
+                    </div>
+
+                    <div class="sender-note">
+                        <i class="bi bi-info-circle me-1"></i>
+
+                        The sender will be redirected to Adobe Acrobat Sign to
+                        review the prepared agreement. Signing invitations are
+                        sent to the configured signers when the sender clicks
+                        <strong>Send</strong> in Adobe.
+                    </div>
+
+                </div>
+
+            </section>
+
+            <hr class="sp-divider" />
+
+            <!-- STEP 5: REVIEW AND SEND -->
+
+            <section id="reviewSection">
+
+                <div class="sp-heading">
+
+                    <div class="sp-icon">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+
+                    <div>
+                        <h4>5. Review and Send</h4>
+                        <p>
+                            Check your document, invitation details, signers
+                            and field placement before continuing to Adobe Sign.
+                        </p>
+                    </div>
+
+                </div>
+
+                <div class="review-panel">
+
+                    <h6>
+                        <i class="bi bi-clipboard-check me-2"></i>
+                        Request Summary
+                    </h6>
+
+                    <div class="review-row">
+                        <span>PDF document</span>
+                        <span id="reviewFile">
+                            @(hasPendingUpload
+                                ? Model.PendingUploadFileName
+                                : "No document selected")
+                        </span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Request date</span>
+                        <span id="reviewDate">
+                            @(Model.RequestDate?.ToString("yyyy-MM-dd") ?? "Not entered")
+                        </span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Document type</span>
+                        <span id="reviewType">
+                            @(string.IsNullOrWhiteSpace(Model.DocumentType)
+                                ? "Not entered"
+                                : Model.DocumentType)
+                        </span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Recipient company</span>
+                        <span id="reviewCompany">
+                            @(string.IsNullOrWhiteSpace(Model.RecipientCompany)
+                                ? "Not entered"
+                                : Model.RecipientCompany)
+                        </span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Recipient email</span>
+                        <span id="reviewRecipientEmail">
+                            @(string.IsNullOrWhiteSpace(Model.RecipientEmail)
+                                ? "Not entered"
+                                : Model.RecipientEmail)
+                        </span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Number of signers</span>
+                        <span id="reviewSignerCount">@initialSignerCount</span>
+                    </div>
+
+                    <div class="review-row">
+                        <span>Signing order</span>
+                        <span id="reviewSigningOrder">
+                            @Model.SigningOrderMode
+                        </span>
+                    </div>
+
+                    <div id="reviewSigners">
+
+                        @for (var i = 0; i < initialSignerCount; i++)
+                        {
+                            var signer = Model.Signers != null &&
+                                         Model.Signers.Count > i
+                                ? Model.Signers[i]
+                                : new DocuWareAdobeSignIntegration.Pages.Signing.SignerFormInput();
+
+                            <div class="review-signer" data-review-signer="@i">
+
+                                <h6>Signer @(i + 1)</h6>
+
+                                <p>
+                                    <strong>Name:</strong>
+                                    <span class="review-signer-name">
+                                        @(string.IsNullOrWhiteSpace(signer.Name)
+                                            ? "Not entered"
+                                            : signer.Name)
+                                    </span>
+                                </p>
+
+                                <p>
+                                    <strong>Email:</strong>
+                                    <span class="review-signer-email">
+                                        @(string.IsNullOrWhiteSpace(signer.Email)
+                                            ? "Not entered"
+                                            : signer.Email)
+                                    </span>
+                                </p>
+
+                                <p>
+                                    <strong>Signature anchor:</strong>
+                                    <span class="review-signer-signature">
+                                        @(string.IsNullOrWhiteSpace(signer.SignatureAnchorText)
+                                            ? "Not entered"
+                                            : signer.SignatureAnchorText)
+                                    </span>
+                                </p>
+
+                                <p>
+                                    <strong>Name anchor:</strong>
+                                    <span class="review-signer-name-anchor">
+                                        @(string.IsNullOrWhiteSpace(signer.NameAnchorText)
+                                            ? "Not entered"
+                                            : signer.NameAnchorText)
+                                    </span>
+                                </p>
+
+                                <p>
+                                    <strong>Date anchor:</strong>
+                                    <span class="review-signer-date-anchor">
+                                        @(string.IsNullOrWhiteSpace(signer.DateAnchorText)
+                                            ? "Not entered"
+                                            : signer.DateAnchorText)
+                                    </span>
+                                </p>
+
+                                <p>
+                                    <strong>Date to prefill:</strong>
+                                    <span class="review-signer-date-value">
+                                        @(string.IsNullOrWhiteSpace(signer.DateFieldValue)
+                                            ? "Not selected"
+                                            : signer.DateFieldValue)
+                                    </span>
+                                </p>
+
+                            </div>
+                        }
+
+                    </div>
+
+                    <div class="review-row">
+                        <span>Email subject</span>
+                        <span id="reviewSubject">
+                            @(Model.EmailSubject ?? "Not entered")
+                        </span>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- ERROR AND SUCCESS MESSAGES -->
+            @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+            {
+                <div class="alert alert-warning mt-3" role="alert">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    @Model.ErrorMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+            {
+                <div class="alert alert-success mt-3" role="status">
+                    @Model.SuccessMessage
+                </div>
+            }
+
+            <!-- FORM ACTIONS -->
+
+            <div class="form-actions">
+
+                <a asp-page="/Index"
+                   class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+
+                <button type="submit"
+                        class="btn btn-primary"
+                        id="submitSigningButton">
+
+                    <i class="bi bi-send me-1"></i>
+                    Continue to Adobe Sign
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+<!-- TEMPLATE USED WHEN THE USER ADDS ANOTHER SIGNER -->
+
+<template id="signerTemplate">
+
+    <div class="signer-card" data-signer-index="__INDEX__">
+
+        <div class="signer-card-header">
+
+            <h6>
+                <span class="signer-number">__NUMBER__</span>
+                Signer __NUMBER__
+            </h6>
+
+            <button type="button"
+                    class="signer-remove"
+                    data-remove-signer>
+
+                <i class="bi bi-trash me-1"></i>
+                Remove
+
+            </button>
+
+        </div>
+
+        <div class="row g-3">
+
+            <div class="col-md-6">
+
+                <label class="form-label"
+                       for="Signers___INDEX___Name">
+
+                    Full Name <span class="text-danger">*</span>
+
+                </label>
+
+                <input name="Signers[__INDEX__].Name"
+                       id="Signers___INDEX___Name"
+                       class="form-control signer-name"
+                       type="text"
+                       maxlength="200"
+                       placeholder="Enter signer's full name"
+                       required />
+
+            </div>
+
+            <div class="col-md-6">
+
+                <label class="form-label"
+                       for="Signers___INDEX___Email">
+
+                    Email Address <span class="text-danger">*</span>
+
+                </label>
+
+                <input name="Signers[__INDEX__].Email"
+                       id="Signers___INDEX___Email"
+                       class="form-control signer-email"
+                       type="email"
+                       maxlength="320"
+                       placeholder="name@example.com"
+                       required />
+
+            </div>
+
+        </div>
+
+        <hr class="sp-divider" />
+
+        <h6 class="mb-3" style="color:#c9b8ff;">
+            <i class="bi bi-crosshair me-2"></i>
+            Automatic Field Placement
+        </h6>
+
+        <p class="anchor-help mb-3">
+            Enter the exact text printed in the PDF beside each field.
+        </p>
+
+        <div class="row g-3">
+
+            <div class="col-md-12">
+
+                <label class="form-label"
+                       for="Signers___INDEX___SignatureAnchorText">
+
+                    Signature Anchor Text
+                    <span class="text-danger">*</span>
+
+                </label>
+
+                <input name="Signers[__INDEX__].SignatureAnchorText"
+                       id="Signers___INDEX___SignatureAnchorText"
+                       class="form-control signer-signature-anchor"
+                       type="text"
+                       maxlength="150"
+                       placeholder="Example: SIGNER __NUMBER__ SIGNATURE"
+                       required />
+
+            </div>
+
+            <div class="col-md-6">
+
+                <label class="form-label"
+                       for="Signers___INDEX___NameAnchorText">
+
+                    Name Anchor Text
+                    <span class="text-danger">*</span>
+
+                </label>
+
+                <input name="Signers[__INDEX__].NameAnchorText"
+                       id="Signers___INDEX___NameAnchorText"
+                       class="form-control signer-name-anchor"
+                       type="text"
+                       maxlength="150"
+                       placeholder="Example: SIGNER __NUMBER__ NAME:"
+                       required />
+
+                <small class="anchor-help">
+                    Exact wording printed beside the full-name field.
+                </small>
+
+            </div>
+
+            <div class="col-md-6">
+
+                <label class="form-label"
+                       for="Signers___INDEX___DateAnchorText">
+
+                    <i class="bi bi-crosshair me-1"></i>
+                    Date Field Anchor Text
+                    <span class="text-danger">*</span>
+
+                </label>
+
+                <input name="Signers[__INDEX__].DateAnchorText"
+                       id="Signers___INDEX___DateAnchorText"
+                       class="form-control signer-date-anchor"
+                       type="text"
+                       maxlength="150"
+                       placeholder="Example: SIGNER __NUMBER__ DATE:"
+                       required />
+
+                <small class="anchor-help">
+                    Exact date label printed in the PDF. Adobe uses this
+                    text to locate the date field.
+                </small>
+
+            </div>
+
+            <!-- NEW DATE PICKER FOR DYNAMIC SIGNERS -->
+
+            <div class="col-md-6">
+
+                <div class="date-value-panel">
+
+                    <label class="form-label"
+                           for="Signers___INDEX___DateFieldValue">
+
+                        <i class="bi bi-calendar-event me-1"></i>
+                        Date to Prefill
+                        <span class="text-muted">(Optional)</span>
+
+                    </label>
+
+                    <input name="Signers[__INDEX__].DateFieldValue"
+                           id="Signers___INDEX___DateFieldValue"
+                           class="form-control signer-date-value"
+                           type="date"
+                           aria-label="Select date to prefill for signer __NUMBER__" />
+
+                    <small class="anchor-help">
+                        Select a date to prefill in this signer's Adobe
+                        date field. Leave blank when the signer should
+                        enter the date themselves.
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</template>
+
+@section Scripts {
+
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            const MAX_SIZE = 10 * 1024 * 1024;
+            const MAX_SIGNERS = 10;
+
+            let fileValidationVersion = 0;
+            let selectedFileIsValidPdf = false;
+
+            const form = document.getElementById("signingForm");
+
+            const fileInput =
+                document.getElementById("UploadedFile");
+
+            const uploadZone =
+                document.getElementById("uploadZone");
+
+            const browseButton =
+                document.getElementById("chooseFileButton");
+
+            const selectedFile =
+                document.getElementById("selectedFile");
+
+            const selectedFileName =
+                document.getElementById("selectedFileName");
+
+            const fileError =
+                document.getElementById("fileError");
+
+            const pendingUploadToken =
+                document.getElementById("PendingUploadToken");
+
+            const pendingUploadFileName =
+                document.getElementById("PendingUploadFileName");
+
+            const signerCountSelect =
+                document.getElementById("signerCount");
+
+            const signersContainer =
+                document.getElementById("signersContainer");
+
+            const signerTemplate =
+                document.getElementById("signerTemplate");
+
+            const signingOrder =
+                document.getElementById("SigningOrderMode");
+
+            const requestDate =
+                document.getElementById("RequestDate");
+
+            const documentType =
+                document.getElementById("DocumentType");
+
+            const recipientCompany =
+                document.getElementById("RecipientCompany");
+
+            const recipientEmail =
+                document.getElementById("RecipientEmail");
+
+            const emailSubject =
+                document.getElementById("EmailSubject");
+
+            const reviewFile =
+                document.getElementById("reviewFile");
+
+            const reviewDate =
+                document.getElementById("reviewDate");
+
+            const reviewType =
+                document.getElementById("reviewType");
+
+            const reviewCompany =
+                document.getElementById("reviewCompany");
+
+            const reviewRecipientEmail =
+                document.getElementById("reviewRecipientEmail");
+
+            const reviewSignerCount =
+                document.getElementById("reviewSignerCount");
+
+            const reviewSigningOrder =
+                document.getElementById("reviewSigningOrder");
+
+            const reviewSigners =
+                document.getElementById("reviewSigners");
+
+            const reviewSubject =
+                document.getElementById("reviewSubject");
+
+            const steps = [
+                document.getElementById("progressStep1"),
+                document.getElementById("progressStep2"),
+                document.getElementById("progressStep3"),
+                document.getElementById("progressStep4"),
+                document.getElementById("progressStep5")
+            ];
+
+            // ==================================================
+            // GENERAL HELPERS
+            // ==================================================
+
+            function valueOf(element) {
+                return element ? element.value.trim() : "";
+            }
+
+            function hasValue(element) {
+                return valueOf(element) !== "";
+            }
+
+            function hasPendingUpload() {
+
+                return !!(
+                    pendingUploadToken &&
+                    pendingUploadFileName &&
+                    pendingUploadToken.value.trim() !== "" &&
+                    pendingUploadFileName.value.trim() !== ""
+                );
+            }
+
+            function validPdfSelected() {
+                return selectedFileIsValidPdf || hasPendingUpload();
+            }
+
+            // ==================================================
+            // PDF CONTENT VALIDATION
+            // ==================================================
+
+            async function getPdfValidationError(file) {
+
+                if (!file) {
+                    return "Please select a PDF document.";
+                }
+
+                if (file.size === 0) {
+                    return "The selected file is empty.";
+                }
+
+                if (file.size > MAX_SIZE) {
+                    return "The PDF file must not exceed 10 MB.";
+                }
+
+                try {
+
+                    const sampleBuffer =
+                        await file.slice(0, 1028).arrayBuffer();
+
+                    const sample =
+                        new Uint8Array(sampleBuffer);
+
+                    const signature = [
+                        0x25,
+                        0x50,
+                        0x44,
+                        0x46,
+                        0x2D
+                    ];
+
+                    let signatureFound = false;
+
+                    for (
+                        let i = 0;
+                        i <= sample.length - signature.length;
+                        i++
+                    ) {
+
+                        let matches = true;
+
+                        for (
+                            let j = 0;
+                            j < signature.length;
+                            j++
+                        ) {
+
+                            if (sample[i + j] !== signature[j]) {
+                                matches = false;
+                                break;
+                            }
+                        }
+
+                        if (matches) {
+                            signatureFound = true;
+                            break;
+                        }
+                    }
+
+                    if (!signatureFound) {
+                        return "The selected file is not recognised as a PDF. Please choose a genuine PDF document.";
+                    }
+
+                } catch (error) {
+
+                    return "The browser could not read the selected document. Please try selecting it again.";
+                }
+
+                return "";
+            }
+
+            // ==================================================
+            // SIGNER HELPERS
+            // ==================================================
+
+            function getSignerCards() {
+
+                return Array.from(
+                    signersContainer.querySelectorAll(".signer-card")
+                );
+            }
+
+            function signerIsComplete(card) {
+
+                const name =
+                    card.querySelector(".signer-name");
+
+                const email =
+                    card.querySelector(".signer-email");
+
+                const signature =
+                    card.querySelector(".signer-signature-anchor");
+
+                const nameAnchor =
+                    card.querySelector(".signer-name-anchor");
+
+                const dateAnchor =
+                    card.querySelector(".signer-date-anchor");
+
+                // Date to Prefill is optional.
+                // Date Field Anchor Text remains mandatory.
+
+                return hasValue(name) &&
+                    hasValue(email) &&
+                    email.validity.valid &&
+                    hasValue(signature) &&
+                    hasValue(nameAnchor) &&
+                    hasValue(dateAnchor);
+            }
+
+            function allSignersComplete() {
+
+                const cards = getSignerCards();
+
+                if (cards.length < 1 || cards.length > MAX_SIGNERS) {
+                    return false;
+                }
+
+                const emails = cards.map(function (card) {
+
+                    return valueOf(
+                        card.querySelector(".signer-email")
+                    ).toLowerCase();
+
+                });
+
+                const uniqueEmails = new Set(emails);
+
+                if (uniqueEmails.size !== emails.length) {
+                    return false;
+                }
+
+                return cards.every(signerIsComplete);
+            }
+
+            // ==================================================
+            // FORM COMPLETION HELPERS
+            // ==================================================
+
+            function documentDetailsComplete() {
+
+                return hasValue(requestDate) &&
+                    hasValue(documentType) &&
+                    hasValue(recipientCompany) &&
+                    hasValue(recipientEmail) &&
+                    recipientEmail.validity.valid;
+            }
+
+            function invitationDetailsComplete() {
+                return hasValue(emailSubject);
+            }
+
+            function adobeSignDetailsComplete() {
+
+                const validSigningOrder =
+                    signingOrder &&
+                    (
+                        signingOrder.value === "Sequential" ||
+                        signingOrder.value === "Parallel"
+                    );
+
+                return validSigningOrder && allSignersComplete();
+            }
+
+            // ==================================================
+            // PROGRESS INDICATOR
+            // ==================================================
+
+            function updateProgress() {
+
+                const completed = [
+                    validPdfSelected(),
+                    documentDetailsComplete(),
+                    invitationDetailsComplete(),
+                    adobeSignDetailsComplete()
+                ];
+
+                let activeStep = completed.findIndex(function (done) {
+                    return !done;
+                });
+
+                if (activeStep === -1) {
+                    activeStep = 4;
+                }
+
+                steps.forEach(function (step, index) {
+
+                    if (!step) {
+                        return;
+                    }
+
+                    step.classList.remove("active", "completed");
+
+                    step.removeAttribute("aria-current");
+
+                    const number =
+                        step.querySelector(".sp-step-number");
+
+                    if (index < activeStep) {
+
+                        step.classList.add("completed");
+
+                        if (number) {
+                            number.textContent = "✓";
+                        }
+
+                    } else if (index === activeStep) {
+
+                        step.classList.add("active");
+
+                        step.setAttribute("aria-current", "step");
+
+                        if (number) {
+                            number.textContent = String(index + 1);
+                        }
+
+                    } else {
+
+                        if (number) {
+                            number.textContent = String(index + 1);
+                        }
+                    }
+                });
+            }
+
+            function showReviewAndSendProgress() {
+
+                steps.forEach(function (step, index) {
+
+                    if (!step) {
+                        return;
+                    }
+
+                    step.classList.remove("active", "completed");
+
+                    step.removeAttribute("aria-current");
+
+                    const number =
+                        step.querySelector(".sp-step-number");
+
+                    if (index < 4) {
+
+                        step.classList.add("completed");
+
+                        if (number) {
+                            number.textContent = "✓";
+                        }
+
+                    } else if (index === 4) {
+
+                        step.classList.add("active");
+
+                        step.setAttribute("aria-current", "step");
+
+                        if (number) {
+                            number.textContent = "5";
+                        }
+                    }
+                });
+            }
+
+            // ==================================================
+            // UPLOAD DISPLAY HELPERS
+            // ==================================================
+
+            function showFileError(message) {
+
+                fileError.textContent = message;
+
+                uploadZone.classList.add("upload-invalid");
+            }
+
+            function clearFileError() {
+
+                fileError.textContent = "";
+
+                uploadZone.classList.remove("upload-invalid");
+            }
+
+            function restorePendingUploadDisplay() {
+
+                if (!hasPendingUpload()) {
+                    return false;
+                }
+
+                const fileName =
+                    pendingUploadFileName.value.trim();
+
+                selectedFileIsValidPdf = true;
+
+                selectedFileName.textContent = fileName;
+
+                reviewFile.textContent = fileName;
+
+                selectedFile.style.display = "flex";
+
+                return true;
+            }
+
+            function clearFileDisplay() {
+
+                if (restorePendingUploadDisplay()) {
+                    updateProgress();
+                    return;
+                }
+
+                selectedFileIsValidPdf = false;
+
+                selectedFile.style.display = "none";
+
+                selectedFileName.textContent = "";
+
+                reviewFile.textContent = "No document selected";
+
+                updateProgress();
+            }
+
+            function updateFileDisplay(file) {
+
+                if (!file) {
+                    return;
+                }
+
+                selectedFileIsValidPdf = true;
+
+                clearFileError();
+
+                selectedFileName.textContent = file.name;
+
+                reviewFile.textContent = file.name;
+
+                selectedFile.style.display = "flex";
+
+                updateProgress();
+            }
+
+            // ==================================================
+            // PROCESS SELECTED PDF
+            // ==================================================
+
+            async function processFile(file) {
+
+                const currentVersion = ++fileValidationVersion;
+
+                if (!file) {
+
+                    selectedFileIsValidPdf = false;
+
+                    clearFileDisplay();
+
+                    return false;
+                }
+
+                clearFileError();
+
+                const validationError =
+                    await getPdfValidationError(file);
+
+                if (currentVersion !== fileValidationVersion) {
+                    return false;
+                }
+
+                if (validationError) {
+
+                    selectedFileIsValidPdf = false;
+
+                    showFileError(validationError);
+
+                    if (
+                        fileInput.files &&
+                        fileInput.files.length > 0 &&
+                        fileInput.files[0] === file
+                    ) {
+                        fileInput.value = "";
+                    }
+
+                    clearFileDisplay();
+
+                    return false;
+                }
+
+                updateFileDisplay(file);
+
+                return true;
+            }
+
+            // ==================================================
+            // REINDEX SIGNER FIELDS
+            // ==================================================
+
+            function reindexSignerCards() {
+
+                const cards = getSignerCards();
+
+                cards.forEach(function (card, index) {
+
+                    card.dataset.signerIndex = String(index);
+
+                    const heading =
+                        card.querySelector(".signer-card-header h6");
+
+                    if (heading) {
+
+                        heading.innerHTML =
+                            '<span class="signer-number">' +
+                            (index + 1) +
+                            '</span> Signer ' +
+                            (index + 1);
+                    }
+
+                    const fields = [
+                        {
+                            selector: ".signer-name",
+                            suffix: "Name"
+                        },
+                        {
+                            selector: ".signer-email",
+                            suffix: "Email"
+                        },
+                        {
+                            selector: ".signer-signature-anchor",
+                            suffix: "SignatureAnchorText"
+                        },
+                        {
+                            selector: ".signer-name-anchor",
+                            suffix: "NameAnchorText"
+                        },
+                        {
+                            selector: ".signer-date-anchor",
+                            suffix: "DateAnchorText"
+                        },
+                        {
+                            selector: ".signer-date-value",
+                            suffix: "DateFieldValue"
+                        }
+                    ];
+
+                    fields.forEach(function (field) {
+
+                        const input =
+                            card.querySelector(field.selector);
+
+                        if (!input) {
+                            return;
+                        }
+
+                        input.name =
+                            "Signers[" + index + "]." + field.suffix;
+
+                        input.id =
+                            "Signers_" + index + "__" + field.suffix;
+
+                        const label = card.querySelector(
+                            'label[for^="Signers_"][for$="__' +
+                            field.suffix +
+                            '"]'
+                        );
+
+                        if (label) {
+                            label.htmlFor = input.id;
+                        }
+                    });
+
+                    const removeButton =
+                        card.querySelector("[data-remove-signer]");
+
+                    if (removeButton) {
+                        removeButton.disabled = cards.length === 1;
+                    }
+                });
+
+                signerCountSelect.value = String(cards.length);
+            }
+
+            // ==================================================
+            // CREATE NEW SIGNER CARD
+            // ==================================================
+
+            function createSignerCard(index) {
+
+                const html = signerTemplate.innerHTML
+                    .replaceAll("__INDEX__", String(index))
+                    .replaceAll("__NUMBER__", String(index + 1));
+
+                const temporary =
+                    document.createElement("div");
+
+                temporary.innerHTML = html.trim();
+
+                return temporary.firstElementChild;
+            }
+
+            // ==================================================
+            // REVIEW SUMMARY
+            // ==================================================
+
+            function updateReview() {
+
+                reviewDate.textContent =
+                    valueOf(requestDate) || "Not entered";
+
+                reviewType.textContent =
+                    valueOf(documentType) || "Not entered";
+
+                reviewCompany.textContent =
+                    valueOf(recipientCompany) || "Not entered";
+
+                reviewRecipientEmail.textContent =
+                    valueOf(recipientEmail) || "Not entered";
+
+                reviewSubject.textContent =
+                    valueOf(emailSubject) || "Not entered";
+
+                const cards = getSignerCards();
+
+                reviewSignerCount.textContent =
+                    String(cards.length);
+
+                reviewSigningOrder.textContent =
+                    signingOrder.value === "Parallel"
+                        ? "Parallel"
+                        : "Sequential";
+
+                reviewSigners.innerHTML = "";
+
+                cards.forEach(function (card, index) {
+
+                    const name =
+                        valueOf(card.querySelector(".signer-name"));
+
+                    const email =
+                        valueOf(card.querySelector(".signer-email"));
+
+                    const signature =
+                        valueOf(card.querySelector(".signer-signature-anchor"));
+
+                    const nameAnchor =
+                        valueOf(card.querySelector(".signer-name-anchor"));
+
+                    const dateAnchor =
+                        valueOf(card.querySelector(".signer-date-anchor"));
+
+                    const dateValue =
+                        valueOf(card.querySelector(".signer-date-value"));
+
+                    const reviewCard =
+                        document.createElement("div");
+
+                    reviewCard.className = "review-signer";
+
+                    const heading =
+                        document.createElement("h6");
+
+                    heading.textContent =
+                        "Signer " + (index + 1);
+
+                    reviewCard.appendChild(heading);
+
+                    function addReviewLine(label, value) {
+
+                        const paragraph =
+                            document.createElement("p");
+
+                        const strong =
+                            document.createElement("strong");
+
+                        const span =
+                            document.createElement("span");
+
+                        strong.textContent = label + ": ";
+
+                        span.textContent = value || "Not entered";
+
+                        paragraph.appendChild(strong);
+
+                        paragraph.appendChild(span);
+
+                        reviewCard.appendChild(paragraph);
+                    }
+
+                    addReviewLine("Name", name);
+
+                    addReviewLine("Email", email);
+
+                    addReviewLine("Signature anchor", signature);
+
+                    addReviewLine("Name anchor", nameAnchor);
+
+                    addReviewLine("Date anchor", dateAnchor);
+
+                    addReviewLine(
+                        "Date to prefill",
+                        dateValue || "Not selected"
+                    );
+
+                    reviewSigners.appendChild(reviewCard);
+                });
+            }
+
+            function updateAll() {
+
+                updateReview();
+
+                updateProgress();
+            }
+
+            // ==================================================
+            // SIGNER COUNT
+            // ==================================================
+
+            function setSignerCount(count) {
+
+                count = Math.max(
+                    1,
+                    Math.min(MAX_SIGNERS, count)
+                );
+
+                let cards = getSignerCards();
+
+                while (cards.length < count) {
+
+                    const newCard =
+                        createSignerCard(cards.length);
+
+                    signersContainer.appendChild(newCard);
+
+                    cards = getSignerCards();
+                }
+
+                while (cards.length > count) {
+
+                    cards[cards.length - 1].remove();
+
+                    cards = getSignerCards();
+                }
+
+                reindexSignerCards();
+
+                updateAll();
+            }
+
+            // ==================================================
+            // OPEN FILE PICKER
+            // ==================================================
+
+            browseButton.addEventListener("click", function () {
+                fileInput.click();
+            });
+
+            // ==================================================
+            // FILE SELECTION
+            // ==================================================
+
+            fileInput.addEventListener("change", async function () {
+
+                clearFileError();
+
+                const file =
+                    this.files && this.files.length > 0
+                        ? this.files[0]
+                        : null;
+
+                await processFile(file);
+            });
+
+            // ==================================================
+            // DRAG AND DROP
+            // ==================================================
+
+            uploadZone.addEventListener("dragover", function (event) {
+
+                event.preventDefault();
+
+                uploadZone.classList.add("drag-over");
+            });
+
+            uploadZone.addEventListener("dragleave", function (event) {
+
+                if (!uploadZone.contains(event.relatedTarget)) {
+                    uploadZone.classList.remove("drag-over");
+                }
+            });
+
+            uploadZone.addEventListener("drop", async function (event) {
+
+                event.preventDefault();
+
+                uploadZone.classList.remove("drag-over");
+
+                const files = event.dataTransfer.files;
+
+                if (!files || files.length === 0) {
+                    return;
+                }
+
+                const file = files[0];
+
+                const validationError =
+                    await getPdfValidationError(file);
+
+                if (validationError) {
+
+                    showFileError(validationError);
+
+                    return;
+                }
+
+                try {
+
+                    const dataTransfer = new DataTransfer();
+
+                    dataTransfer.items.add(file);
+
+                    fileInput.files = dataTransfer.files;
+
+                    await processFile(file);
+
+                } catch (error) {
+
+                    selectedFileIsValidPdf = false;
+
+                    showFileError(
+                        "Your browser could not attach the dropped file. Please use Browse for Documents."
+                    );
+                }
+            });
+
+            // ==================================================
+            // CHANGE SIGNER COUNT
+            // ==================================================
+
+            signerCountSelect.addEventListener("change", function () {
+
+                setSignerCount(
+                    parseInt(this.value, 10)
+                );
+            });
+
+            // ==================================================
+            // REMOVE SIGNER
+            // ==================================================
+
+            signersContainer.addEventListener("click", function (event) {
+
+                const target = event.target;
+
+                if (!(target instanceof Element)) {
+                    return;
+                }
+
+                const removeButton =
+                    target.closest("[data-remove-signer]");
+
+                if (!removeButton || removeButton.disabled) {
+                    return;
+                }
+
+                const card =
+                    removeButton.closest(".signer-card");
+
+                if (card) {
+
+                    card.remove();
+
+                    reindexSignerCards();
+
+                    updateAll();
+                }
+            });
+
+            // ==================================================
+            // LIVE REVIEW AND PROGRESS UPDATES
+            // ==================================================
+
+            form.addEventListener("input", function (event) {
+
+                if (event.target.matches("input, textarea, select")) {
+                    updateAll();
+                }
+            });
+
+            form.addEventListener("change", function () {
+                updateAll();
+            });
+
+            // ==================================================
+            // FORM SUBMISSION VALIDATION
+            // ==================================================
+
+            form.addEventListener("submit", function (event) {
+
+                clearFileError();
+
+                if (!validPdfSelected()) {
+
+                    event.preventDefault();
+
+                    showFileError(
+                        "Please upload a valid PDF document before continuing."
+                    );
+
+                    uploadZone.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                    browseButton.focus();
+
+                    return;
+                }
+
+                const cards = getSignerCards();
+
+                if (cards.length < 1 || cards.length > MAX_SIGNERS) {
+
+                    event.preventDefault();
+
+                    alert("Please select between 1 and 10 signers.");
+
+                    signerCountSelect.focus();
+
+                    return;
+                }
+
+                if (
+                    !hasValue(recipientEmail) ||
+                    !recipientEmail.validity.valid
+                ) {
+
+                    event.preventDefault();
+
+                    alert("Please enter a valid recipient email address.");
+
+                    recipientEmail.focus();
+
+                    recipientEmail.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+
+                    return;
+                }
+
+                const seenEmails = new Set();
+
+                for (let index = 0; index < cards.length; index++) {
+
+                    const card = cards[index];
+
+                    const requiredFields = [
+                        {
+                            selector: ".signer-name",
+                            label: "full name"
+                        },
+                        {
+                            selector: ".signer-email",
+                            label: "email address"
+                        },
+                        {
+                            selector: ".signer-signature-anchor",
+                            label: "signature anchor text"
+                        },
+                        {
+                            selector: ".signer-name-anchor",
+                            label: "name anchor text"
+                        },
+                        {
+                            selector: ".signer-date-anchor",
+                            label: "date anchor text"
+                        }
+                    ];
+
+                    for (const field of requiredFields) {
+
+                        const input =
+                            card.querySelector(field.selector);
+
+                        if (
+                            !hasValue(input) ||
+                            !input.validity.valid
+                        ) {
+
+                            event.preventDefault();
+
+                            alert(
+                                "Please enter a valid " +
+                                field.label +
+                                " for signer " +
+                                (index + 1) +
+                                "."
+                            );
+
+                            input.focus();
+
+                            input.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center"
+                            });
+
+                            return;
+                        }
+                    }
+
+                    // DateFieldValue is optional.
+                    // If the user selects a date, it must be a valid date input.
+
+                    const dateValueInput =
+                        card.querySelector(".signer-date-value");
+
+                    if (
+                        dateValueInput.value &&
+                        !dateValueInput.validity.valid
+                    ) {
+
+                        event.preventDefault();
+
+                        alert(
+                            "Please select a valid prefill date for signer " +
+                            (index + 1) +
+                            "."
+                        );
+
+                        dateValueInput.focus();
+
+                        return;
+                    }
+
+                    const email =
+                        valueOf(
+                            card.querySelector(".signer-email")
+                        ).toLowerCase();
+
+                    if (seenEmails.has(email)) {
+
+                        event.preventDefault();
+
+                        alert(
+                            "Each signer must have a unique email address. " +
+                            "The email for signer " +
+                            (index + 1) +
+                            " is already being used."
+                        );
+
+                        card.querySelector(".signer-email").focus();
+
+                        return;
+                    }
+
+                    seenEmails.add(email);
+                }
+
+                if (
+                    !signingOrder ||
+                    (
+                        signingOrder.value !== "Sequential" &&
+                        signingOrder.value !== "Parallel"
+                    )
+                ) {
+
+                    event.preventDefault();
+
+                    alert("Please select a valid signing order.");
+
+                    signingOrder.focus();
+
+                    return;
+                }
+
+                if (!form.checkValidity()) {
+
+                    event.preventDefault();
+
+                    form.reportValidity();
+
+                    return;
+                }
+
+                showReviewAndSendProgress();
+
+                const submitButton =
+                    document.getElementById("submitSigningButton");
+
+                submitButton.disabled = true;
+
+                submitButton.innerHTML =
+                    '<span class="spinner-border spinner-border-sm me-2"></span>' +
+                    'Preparing Adobe Sign agreement...';
+            });
+
+            // ==================================================
+            // INITIAL PAGE SETUP
+            // ==================================================
+
+            reindexSignerCards();
+
+            if (hasPendingUpload()) {
+                restorePendingUploadDisplay();
+            }
+
+            updateAll();
+
+        });
+    </script>
+}

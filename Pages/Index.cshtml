@@ -1,204 +1,1171 @@
 @page
 @model DocuWareAdobeSignIntegration.Pages.IndexModel
+@using System
+@using System.Linq
+@using DocuWareAdobeSignIntegration.Helpers
 
 @{
     ViewData["Title"] = "Dashboard";
+
+    // Only active workflows belong on this dashboard.
+    // Successfully archived documents are displayed on the Completed page.
+    var activeStatuses = new[]
+    {
+        "Uploaded",
+        "Authoring",
+        "Awaiting Signature",
+        "In Progress",
+        "Failed"
+    };
+
+    var items = Model.DashboardDocuments
+        .Where(i => activeStatuses.Contains(
+            i.Status ?? string.Empty,
+            StringComparer.OrdinalIgnoreCase))
+        .Select(i => new
+        {
+            Item = i,
+            Cat = DocumentCategorizer.Resolve(
+                i.Document.Category,
+                i.Document.CategoryClass,
+                i.Document.Name)
+        })
+        .ToList();
 }
 
-<section class="toolbar">
+<style>
+    .signer-progress-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 12px;
+    }
+
+    .signer-progress-card {
+        padding: 12px 14px;
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 12px;
+        background: rgba(255,255,255,.025);
+    }
+
+    .signer-progress-track {
+        width: 100%;
+        height: 7px;
+        margin-top: 10px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255,255,255,.12);
+    }
+
+    .signer-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        transition: width .25s ease;
+    }
+
+        .signer-progress-fill.is-signed {
+            background: #28c995;
+        }
+
+        .signer-progress-fill.is-pending {
+            background: #9b7bff;
+        }
+
+        .signer-progress-fill.is-failed {
+            background: #ff6577;
+        }
+
+    .signer-progress-caption {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 6px;
+        color: #a3a8bd;
+        font-size: 11px;
+    }
+</style>
+
+<!-- =====================================================
+     DASHBOARD FEEDBACK MESSAGES
+===================================================== -->
+@if (TempData["DashboardClearSuccess"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i>
+        @TempData["DashboardClearSuccess"]
+
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close">
+        </button>
+    </div>
+}
+
+@if (TempData["DashboardClearError"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        @TempData["DashboardClearError"]
+
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close">
+        </button>
+    </div>
+}
+
+@if (TempData["ConfirmSendSuccess"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i>
+        @TempData["ConfirmSendSuccess"]
+
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close">
+        </button>
+    </div>
+}
+
+@if (TempData["ConfirmSendError"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        @TempData["ConfirmSendError"]
+
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close">
+        </button>
+    </div>
+}
+
+<!-- =====================================================
+     SEARCH AND FILTER TOOLBAR
+===================================================== -->
+
+<section class="toolbar" aria-label="Document search and filters">
 
     <div class="search-box">
-        <i class="bi bi-search"></i>
+        <i class="bi bi-search" aria-hidden="true"></i>
+
         <input id="documentSearch"
                type="search"
-               placeholder="Search all documents..."
-               aria-label="Search documents" />
+               placeholder="Search your documents..."
+               aria-label="Search documents"
+               autocomplete="off" />
     </div>
 
     <div class="filter-row">
+
         <span>Filter by status</span>
 
-        <button class="status-filter active" data-filter="all">All</button>
-        <button class="status-filter" data-filter="In Progress">In Progress</button>
-        <button class="status-filter" data-filter="Complete">Complete</button>
-        <button class="status-filter" data-filter="Awaiting Signature">Awaiting Signature</button>
-        <button class="status-filter" data-filter="Failed">Failed</button>
+        <button type="button"
+                class="status-filter active"
+                data-filter="all"
+                aria-pressed="true">
+            All
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="Uploaded"
+                aria-pressed="false">
+            Uploaded
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="Authoring"
+                aria-pressed="false">
+            Authoring
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="Awaiting Signature"
+                aria-pressed="false">
+            Awaiting Signature
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="In Progress"
+                aria-pressed="false">
+            In Progress
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="Signed"
+                aria-pressed="false">
+            Signed
+        </button>
+
+        <button type="button"
+                class="status-filter"
+                data-filter="Failed"
+                aria-pressed="false">
+            Failed
+        </button>
+
     </div>
 
 </section>
 
-<section class="stats-grid">
+<!-- =====================================================
+     DASHBOARD STATISTICS
+===================================================== -->
+
+<section class="stats-grid" aria-label="Dashboard statistics">
 
     <article class="stat-card blue">
         <div class="stat-icon">
-            <i class="bi bi-file-earmark"></i>
+            <i class="bi bi-file-earmark" aria-hidden="true"></i>
         </div>
+
         <div>
             <span>Total documents uploaded</span>
-            <strong>@Model.TotalUploaded</strong>
+            <strong data-count="@Model.TotalUploaded">
+                @Model.TotalUploaded
+            </strong>
         </div>
     </article>
 
     <article class="stat-card amber">
         <div class="stat-icon">
-            <i class="bi bi-hourglass-split"></i>
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
         </div>
+
         <div>
             <span>Awaiting signatures</span>
-            <strong>@Model.AwaitingSignatures</strong>
+            <strong data-count="@Model.AwaitingSignatures">
+                @Model.AwaitingSignatures
+            </strong>
         </div>
     </article>
 
     <article class="stat-card purple">
         <div class="stat-icon">
-            <i class="bi bi-pen"></i>
+            <i class="bi bi-pen" aria-hidden="true"></i>
         </div>
+
         <div>
             <span>Currently being signed</span>
-            <strong>@Model.InProgress</strong>
+            <strong data-count="@Model.InProgress">
+                @Model.InProgress
+            </strong>
         </div>
     </article>
 
     <article class="stat-card green">
         <div class="stat-icon">
-            <i class="bi bi-check2-circle"></i>
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
         </div>
+
         <div>
-            <span>Successfully signed</span>
-            <strong>@Model.Completed</strong>
+            <span>Completed and saved</span>
+            <strong data-count="@Model.Completed">
+                @Model.Completed
+            </strong>
         </div>
     </article>
 
     <article class="stat-card red">
         <div class="stat-icon">
-            <i class="bi bi-exclamation-triangle"></i>
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
         </div>
+
         <div>
             <span>Failed / Rejected</span>
-            <strong>@Model.Failed</strong>
+            <strong data-count="@Model.Failed">
+                @Model.Failed
+            </strong>
         </div>
     </article>
 
 </section>
 
+<!-- =====================================================
+     DOCUMENTS BEING SIGNED
+===================================================== -->
+
 <div class="section-heading">
 
     <div>
-        <h2>Recent document activity</h2>
-        <p>Track the latest signing activity across your documents.</p>
+        <h2>Documents being signed</h2>
+
+        <p>
+            Track each recipient's signing status and see how many signatures
+            have been completed for every active agreement.
+        </p>
     </div>
 
-    <a class="btn btn-outline-primary btn-sm"
-       asp-page="/Pending/Index">
-        View pending
-        <i class="bi bi-arrow-right"></i>
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+
+        <form method="post"
+              asp-page-handler="ClearDashboard"
+              onsubmit="return confirm('Are you sure you want to clear all document cards from your Dashboard? This will not delete documents from DocuWare or your database.');">
+
+            <button type="submit"
+                    class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash" aria-hidden="true"></i>
+                Clear Dashboard
+            </button>
+
+        </form>
+
+        <a class="btn btn-outline-primary btn-sm"
+           asp-page="/Index">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            Refresh
+        </a>
+
+    </div>
 
 </div>
 
-@if (Model.RecentActivity.Any())
+@if (!string.IsNullOrWhiteSpace(Model.DocuWareError))
 {
-    <section id="activityList" class="activity-list">
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        @Model.DocuWareError
+    </div>
+}
 
-        @foreach (var item in Model.RecentActivity)
+<!-- =====================================================
+     DOCUMENT CARDS
+===================================================== -->
+@if (items.Any())
+{
+    <div class="docuware-card-grid">
+
+        @foreach (var (entry, cardIndex) in items.Select((e, n) => (e, n)))
         {
-            <article class="document-card"
-                     data-status="@item.Status"
-                     data-search="@($"{item.Name} {item.Recipient} {item.Status}".ToLowerInvariant())">
+            var dashboardItem = entry.Item;
+            var document = dashboardItem.Document;
 
-                <div class="document-accent"></div>
+            var displayCategory = entry.Cat.Name;
+            var displayCategoryClass = entry.Cat.Css;
 
-                <div class="document-head">
+            var status = dashboardItem.Status ?? "Uploaded";
+            var statusColor = DocumentCategorizer.StatusColor(status);
 
-                    <div>
-                        <h3>@item.Name</h3>
+            var progress = Math.Clamp(dashboardItem.Progress, 0, 100);
+            var signerCount = dashboardItem.Recipients.Count;
+            var signedSignerCount = dashboardItem.Recipients.Count(recipient => recipient.IsSigned);
+            var signerStatusesAvailable = signerCount > 0 &&
+                dashboardItem.Recipients.All(recipient =>
+                    !string.Equals(
+                        recipient.Status,
+                        "UNKNOWN",
+                        StringComparison.OrdinalIgnoreCase));
+            var signerOverallProgress = signerStatusesAvailable
+                ? (int)Math.Round(
+                    signedSignerCount * 100d / signerCount,
+                    MidpointRounding.AwayFromZero)
+                : 0;
+            var displayedProgress = signerCount > 0
+                ? signerOverallProgress
+                : progress;
 
-                        <div class="document-meta">
-                            Sent @item.SentAt.ToString("dd MMM yyyy, HH:mm")
-                            <span>•</span>
-                            Assigned to @item.Recipient
-                        </div>
+            var isFailed = string.Equals(
+                status,
+                "Failed",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isUploaded = string.Equals(
+                status,
+                "Uploaded",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isAuthoring = string.Equals(
+                status,
+                "Authoring",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isAwaitingSignature = string.Equals(
+                status,
+                "Awaiting Signature",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isInProgress = string.Equals(
+                status,
+                "In Progress",
+                StringComparison.OrdinalIgnoreCase);
+
+            var isSigned = string.Equals(
+                status,
+                "Signed",
+                StringComparison.OrdinalIgnoreCase);
+
+            // Only an existing AUTHORING agreement can be confirmed.
+            // The agreement ID must be available.
+            var canConfirmAndSend =
+                isAuthoring &&
+                dashboardItem.HasWorkflow &&
+                !string.IsNullOrWhiteSpace(dashboardItem.AgreementId);
+
+            // -------------------------------------------------
+            // PROGRESS STAGE STATES
+            // -------------------------------------------------
+
+            var uploadedDone =
+                !isUploaded &&
+                !isFailed;
+
+            var uploadedCurrent = isUploaded;
+
+            var authoringDone =
+                isAwaitingSignature ||
+                isInProgress ||
+                isSigned;
+
+            var authoringCurrent = isAuthoring;
+
+            var sentDone =
+                isInProgress ||
+                isSigned;
+
+            var sentCurrent = isAwaitingSignature;
+
+            var signingDone = isSigned;
+
+            var signingCurrent = isInProgress;
+
+            var signedCurrent = isSigned;
+
+            var recipientSearch = string.Join(
+                " ",
+                dashboardItem.Recipients.Select(recipient =>
+                    $"{recipient.Name} {recipient.Email} {recipient.StatusLabel}"));
+
+            var statusSearch =
+                $"{document.Name} {document.Id} {document.DocumentType} {displayCategory} {status} {recipientSearch}"
+                .ToLowerInvariant();
+
+            <article class="docuware-card st-@statusColor"
+                     style="--i:@cardIndex"
+                     data-status="@status"
+                     data-category="@displayCategory"
+                     data-search="@statusSearch">
+
+                <!-- DOCUMENT HEADER -->
+
+                <div class="docuware-card-header">
+
+                    <div class="docuware-file-icon">
+                        <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
                     </div>
 
-                    <span class="status-pill @item.StatusClass">
-                        @item.Status
-                    </span>
+                    <div class="docuware-file-info">
 
-                    <button class="icon-button"
-                            title="More actions"
-                            onclick="showActionNotice('@item.Name')">
+                        <h3>@document.Name</h3>
 
-                        <i class="bi bi-three-dots-vertical"></i>
-
-                    </button>
-
-                </div>
-
-                <div class="signer-list">
-
-                    <div class="signer-row">
-
-                        <span class="signer-avatar">
-                            @item.Recipient.Substring(0, 1)
+                        <span>
+                            DocuWare ID: @document.Id
                         </span>
 
-                        <div class="signer-details">
-                            <b>@item.Recipient</b>
-                            <small>@item.Email</small>
+                        <div>
+                            <span class="document-category-badge category-@displayCategoryClass">
+                                @displayCategory
+                            </span>
                         </div>
 
-                        <div class="progress-track">
-
-                            <span class="step done">
-                                <i></i>Emailed
+                        @if (!string.IsNullOrWhiteSpace(document.DocumentType))
+                        {
+                            <span class="document-type-label">
+                                Document type: @document.DocumentType
                             </span>
-
-                            <span class="track-line"></span>
-
-                            <span class="step @(item.Progress >= 2 ? "done" : "")">
-                                <i></i>Opened
+                        }
+                        else
+                        {
+                            <span class="document-type-label">
+                                Document type not assigned
                             </span>
+                        }
 
-                            <span class="track-line"></span>
+                    </div>
 
-                            <span class="step @(item.Progress >= 3 ? "done" : "")">
-                                <i></i>Viewed
-                            </span>
+                    <span class="document-status st-@statusColor @dashboardItem.StatusClass">
+                        <i class="sdot" aria-hidden="true"></i>
+                        @status
+                    </span>
 
-                            <span class="track-line"></span>
+                </div>
 
-                            <span class="step @(item.Progress >= 4 ? "done" : "")">
-                                <i></i>@item.FinalStep
-                            </span>
+                <hr />
+
+                <!-- DOCUMENT DETAILS -->
+
+                <div class="docuware-details">
+
+                    <div>
+                        <span>Date uploaded</span>
+
+                        <strong>
+                            @(document.CreatedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not available")
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Last modified</span>
+
+                        <strong>
+                            @(document.LastModified?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not available")
+                        </strong>
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <!-- SIGNING PROGRESS -->
+
+                <div class="signing-progress">
+
+                    <div class="progress-heading">
+
+                        <strong>Signing progress</strong>
+
+                        <span class="document-progress-value">
+                            @if (signerCount > 0 && signerStatusesAvailable)
+                            {
+                                <text>@signedSignerCount of @signerCount signers signed · @signerOverallProgress% complete</text>
+                            }
+                            else if (signerCount > 0)
+                            {
+                                <text>@signerCount @(signerCount == 1 ? "signer" : "signers") · status unavailable</text>
+                            }
+                            else
+                            {
+                                <text>@progress% complete</text>
+                            }
+                        </span>
+
+                    </div>
+
+                    <!-- FIVE-STAGE PROGRESS TRACKER -->
+
+                    <div class="progress-steps">
+
+                        <!-- STEP 1: UPLOADED -->
+
+                        <div class="progress-step @(uploadedDone ? "completed" : "") @(uploadedCurrent ? "current" : "")">
+
+                            <div class="step-circle">
+                                @if (uploadedDone)
+                                {
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span>1</span>
+                                }
+                            </div>
+
+                            <span>Uploaded</span>
+
+                        </div>
+
+                        <!-- STEP 2: AUTHORING -->
+
+                        <div class="progress-step @(authoringDone ? "completed" : "") @(authoringCurrent ? "current" : "")">
+
+                            <div class="step-circle">
+                                @if (authoringDone)
+                                {
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span>2</span>
+                                }
+                            </div>
+
+                            <span>Authoring</span>
+
+                        </div>
+
+                        <!-- STEP 3: SENT -->
+
+                        <div class="progress-step @(sentDone ? "completed" : "") @(sentCurrent ? "current" : "")">
+
+                            <div class="step-circle">
+                                @if (sentDone)
+                                {
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span>3</span>
+                                }
+                            </div>
+
+                            <span>Sent</span>
+
+                        </div>
+
+                        <!-- STEP 4: SIGNING -->
+
+                        <div class="progress-step @(signingDone ? "completed" : "") @(signingCurrent ? "current" : "")">
+
+                            <div class="step-circle">
+                                @if (signingDone)
+                                {
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span>4</span>
+                                }
+                            </div>
+
+                            <span>Signing</span>
+
+                        </div>
+
+                        <!-- STEP 5: SIGNED -->
+
+                        <div class="progress-step @(signedCurrent ? "completed current" : "")">
+
+                            <div class="step-circle">
+                                @if (signedCurrent)
+                                {
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span>5</span>
+                                }
+                            </div>
+
+                            <span>Signed</span>
 
                         </div>
 
                     </div>
 
+                    <!-- PROGRESS BAR -->
+
+                    <div class="progress-bar-container"
+                         role="progressbar"
+                         aria-label="Signing progress"
+                         aria-valuenow="@displayedProgress"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+
+                        <div class="progress-bar-fill"
+                             style="width: @displayedProgress%;">
+                        </div>
+
+                    </div>
+
+                    <p class="progress-description">
+                        @dashboardItem.Description
+                    </p>
+
+                    @if (dashboardItem.Recipients.Any())
+                    {
+                        <div class="mt-3 pt-3 border-top">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <strong>
+                                    Signer progress
+                                </strong>
+
+                                @if (signerStatusesAvailable)
+                                {
+                                    <span class="small text-secondary">
+                                        @signedSignerCount of @signerCount signed
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="small text-secondary">
+                                        @signerCount @(signerCount == 1 ? "signer" : "signers") · live statuses unavailable
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="signer-progress-list">
+                                @foreach (var recipient in dashboardItem.Recipients)
+                                {
+                                    var normalizedRecipientStatus =
+                                        (recipient.Status ?? "UNKNOWN").Trim().ToUpperInvariant();
+
+                                    // Adobe provides discrete participant states, not a
+                                    // reliable percentage of fields completed by a signer.
+                                    // Therefore each signer bar represents completion:
+                                    // signed = 100%; still waiting = 0%.
+                                    var recipientProgress = recipient.IsSigned ? 100 : 0;
+
+                                    var recipientHasFailed =
+                                        normalizedRecipientStatus == "CANCELLED" ||
+                                        normalizedRecipientStatus == "CANCELED" ||
+                                        normalizedRecipientStatus == "EXPIRED" ||
+                                        normalizedRecipientStatus == "ABORTED" ||
+                                        normalizedRecipientStatus == "REJECTED" ||
+                                        normalizedRecipientStatus == "DECLINED";
+
+                                    var recipientBadgeClass = recipient.IsSigned
+                                        ? "bg-success"
+                                        : recipientHasFailed
+                                            ? "bg-danger"
+                                            : normalizedRecipientStatus == "WAITING_FOR_MY_SIGNATURE"
+                                                ? "bg-warning text-dark"
+                                                : "bg-secondary";
+
+                                    var recipientFillClass = recipient.IsSigned
+                                        ? "is-signed"
+                                        : recipientHasFailed
+                                            ? "is-failed"
+                                            : "is-pending";
+
+                                    <div class="signer-progress-card">
+                                        <div class="d-flex justify-content-between align-items-center gap-2">
+                                            <div class="signer-details min-width-0">
+                                                <b>@recipient.Name</b>
+                                                <small class="d-block text-secondary">
+                                                    @recipient.Email
+                                                </small>
+                                            </div>
+
+                                            <span class="badge @recipientBadgeClass text-nowrap">
+                                                @recipient.StatusLabel
+                                            </span>
+                                        </div>
+
+                                        <div class="signer-progress-track"
+                                             role="progressbar"
+                                             aria-label="Signing progress for @recipient.Name"
+                                             aria-valuenow="@recipientProgress"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                            <div class="signer-progress-fill @recipientFillClass"
+                                                 style="width: @(recipientProgress)%;">
+                                            </div>
+                                        </div>
+
+                                        <div class="signer-progress-caption">
+                                            <span>@recipient.StatusLabel</span>
+                                            <strong>@(signerStatusesAvailable ? $"{recipientProgress}%" : "—")</strong>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (isFailed)
+                    {
+                        <div class="alert alert-danger mt-2 mb-0">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            This workflow requires attention. Check the workflow error details before trying again.
+                        </div>
+                    }
+
+                    @if (isSigned)
+                    {
+                        <div class="alert alert-info mt-2 mb-0">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            All signatures have been completed. The signed document is awaiting successful DocuWare archival.
+                        </div>
+                    }
+
                 </div>
+
+                <!-- =================================================
+                     CONFIRM AND SEND BUTTON
+                ================================================== -->
+                @if (canConfirmAndSend)
+                {
+                    <div class="mt-3 pt-3 border-top">
+
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+
+                            <strong>Adobe has not confirmed the automatic send.</strong>
+
+                            The agreement already exists. Retry sending
+                            this same agreement to the assigned recipients;
+                            do not create another signing request.
+                        </div>
+
+                        <form method="post"
+                              asp-page-handler="ConfirmAndSend"
+                              class="confirm-send-form"
+                              onsubmit="return confirm('Are you sure you want to confirm and send this existing agreement to all assigned recipients for signature?');">
+
+                            <input type="hidden"
+                                   name="agreementId"
+                                   value="@dashboardItem.AgreementId" />
+
+                            <button type="submit"
+                                    class="btn btn-primary w-100">
+
+                                <i class="bi bi-send-fill" aria-hidden="true"></i>
+
+                                Retry Sending to Signers
+
+                            </button>
+
+                        </form>
+
+                    </div>
+                }
 
             </article>
         }
 
-    </section>
+    </div>
 }
 else
 {
     <div class="empty-state">
 
-        <i class="bi bi-file-earmark-text"></i>
+        <i class="bi bi-pen" aria-hidden="true"></i>
 
-        <h3>No documents received</h3>
+        <h3>No documents are being signed right now</h3>
 
         <p>
-            Documents sent from DocuWare will appear here automatically.
+            Documents waiting for recipients to sign will appear here.
+            Agreements with a failed automatic send remain here so you
+            can retry the existing agreement without creating a duplicate.
         </p>
 
     </div>
 }
 
+<!-- =====================================================
+     RECENT ADOBE SIGN ACTIVITY
+===================================================== -->
+
+<section id="recentActivitySection">
+
+    <div class="section-heading">
+
+        <div>
+            <h2>Recent document activity</h2>
+
+            <p>
+                Track the latest signing activity across your documents.
+            </p>
+        </div>
+
+        <a class="btn btn-outline-primary btn-sm"
+           asp-page="/Pending/Index">
+            View pending
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </a>
+
+    </div>
+
+    @if (Model.RecentActivity.Any())
+    {
+        <section id="activityList" class="activity-list">
+
+            @foreach (var item in Model.RecentActivity)
+            {
+                <article class="document-card"
+                         data-status="@item.Status"
+                         data-category="activity"
+                         data-search="@item.SearchText">
+
+                    <div class="document-accent"></div>
+
+                    <!-- ACTIVITY HEADER -->
+
+                    <div class="document-head">
+
+                        <div>
+                            <h3>@item.Name</h3>
+
+                            <div class="document-meta">
+                                @item.DateLabel
+                                @item.SentAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                            </div>
+                        </div>
+
+                        <span class="status-pill @item.StatusClass">
+                            @item.Status
+                        </span>
+
+                    </div>
+
+                    <!-- RECIPIENTS -->
+
+                    <div class="signer-list">
+
+                        @foreach (var recipient in item.Recipients)
+                        {
+                            <div class="signer-row">
+
+                                <span class="signer-avatar">
+                                    @(string.IsNullOrWhiteSpace(recipient.Name)
+                                        ? "?"
+                                        : recipient.Name.Substring(0, 1).ToUpperInvariant())
+                                </span>
+
+                                <div class="signer-details">
+                                    <b>@recipient.Name</b>
+                                    <small>@recipient.Email</small>
+                                    <small class="d-block text-secondary">
+                                        @recipient.StatusLabel
+                                    </small>
+                                </div>
+
+                                <span class="badge @(recipient.IsSigned ? "bg-success" : "bg-secondary")">
+                                    @recipient.StatusLabel
+                                </span>
+
+                            </div>
+                        }
+
+                    </div>
+
+                    <!-- AGREEMENT-LEVEL ACTIVITY TRACKER -->
+
+                    <div class="progress-track">
+
+                        <span class="step @(item.Progress >= 1 ? "done" : "")">
+                            <i aria-hidden="true"></i>
+                            Emailed
+                        </span>
+
+                        <span class="track-line"></span>
+
+                        <span class="step @(item.Progress >= 2 ? "done" : "")">
+                            <i aria-hidden="true"></i>
+                            Opened
+                        </span>
+
+                        <span class="track-line"></span>
+
+                        <span class="step @(item.Progress >= 3 ? "done" : "")">
+                            <i aria-hidden="true"></i>
+                            Signed
+                        </span>
+
+                        <span class="track-line"></span>
+
+                        <span class="step @(item.Progress >= 4 ? "done" : "")">
+                            <i aria-hidden="true"></i>
+                            @item.FinalStep
+                        </span>
+
+                    </div>
+
+                </article>
+            }
+
+        </section>
+    }
+    else
+    {
+        <div class="empty-state">
+
+            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+
+            <h3>No signing activity yet</h3>
+
+            <p>
+                Your Adobe Sign activity will appear here.
+            </p>
+
+        </div>
+    }
+
+</section>
+
+<!-- =====================================================
+     SEARCH EMPTY STATE
+===================================================== -->
+
 <div id="emptyState" class="empty-state d-none">
-    <i class="bi bi-search"></i>
+
+    <i class="bi bi-search" aria-hidden="true"></i>
+
     <h3>No documents found</h3>
-    <p>Try another search term or status filter.</p>
+
+    <p>
+        Try another search term or status filter.
+    </p>
+
 </div>
+
+<!-- =====================================================
+     DASHBOARD INTERACTIONS
+===================================================== -->
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const searchInput =
+            document.getElementById("documentSearch");
+
+        const filterButtons =
+            document.querySelectorAll(".status-filter");
+
+        const emptyState =
+            document.getElementById("emptyState");
+
+        const documents =
+            document.querySelectorAll(
+                ".docuware-card, #activityList .document-card"
+            );
+
+        let activeFilter = "all";
+
+        // --------------------------------------------------
+        // SEARCH AND FILTER
+        // --------------------------------------------------
+
+        function filterDocuments() {
+
+            const searchValue = searchInput
+                ? searchInput.value.toLowerCase().trim()
+                : "";
+
+            let visibleCount = 0;
+
+            documents.forEach(function (doc) {
+
+                const status = doc.dataset.status || "";
+                const searchText = doc.dataset.search || "";
+
+                const matchesSearch =
+                    searchText.includes(searchValue);
+
+                const matchesFilter =
+                    activeFilter === "all" ||
+                    status.toLowerCase() === activeFilter.toLowerCase();
+
+                const visible =
+                    matchesSearch && matchesFilter;
+
+                doc.style.display = visible ? "" : "none";
+
+                if (visible) {
+                    visibleCount++;
+                }
+            });
+
+            if (emptyState) {
+
+                const hasDocuments = documents.length > 0;
+
+                emptyState.classList.toggle(
+                    "d-none",
+                    !hasDocuments || visibleCount > 0
+                );
+            }
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener(
+                "input",
+                filterDocuments
+            );
+        }
+
+        // --------------------------------------------------
+        // STATUS FILTER BUTTONS
+        // --------------------------------------------------
+
+        filterButtons.forEach(function (button) {
+
+            button.addEventListener("click", function () {
+
+                filterButtons.forEach(function (item) {
+
+                    item.classList.remove("active");
+                    item.setAttribute("aria-pressed", "false");
+
+                });
+
+                button.classList.add("active");
+                button.setAttribute("aria-pressed", "true");
+
+                activeFilter =
+                    button.dataset.filter || "all";
+
+                filterDocuments();
+            });
+        });
+
+        filterDocuments();
+
+        // --------------------------------------------------
+        // COUNT-UP STATISTICS ANIMATION
+        // --------------------------------------------------
+
+        const prefersReducedMotion =
+            window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        if (!prefersReducedMotion) {
+
+            document.querySelectorAll("[data-count]").forEach(function (el) {
+
+                const target =
+                    parseInt(el.dataset.count, 10) || 0;
+
+                const start = performance.now();
+                const duration = 1100;
+
+                function tick(now) {
+
+                    const progress = Math.min(
+                        (now - start) / duration,
+                        1
+                    );
+
+                    const easedProgress =
+                        1 - Math.pow(1 - progress, 3);
+
+                    el.textContent = Math.round(
+                        target * easedProgress
+                    );
+
+                    if (progress < 1) {
+                        requestAnimationFrame(tick);
+                    }
+                }
+
+                requestAnimationFrame(tick);
+            });
+        }
+
+        // --------------------------------------------------
+        // PREVENT DOUBLE SUBMISSION OF CONFIRMATION
+        // --------------------------------------------------
+
+        document.querySelectorAll(
+            ".confirm-send-form"
+        ).forEach(function (form) {
+
+            form.addEventListener("submit", function (event) {
+
+                // The inline confirmation runs before this handler.
+                // If the user cancels, the submit event does not fire.
+                const button = form.querySelector(
+                    'button[type="submit"]'
+                );
+
+                if (button) {
+
+                    button.disabled = true;
+
+                    button.innerHTML =
+                        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+                        'Sending agreement...';
+                }
+            });
+        });
+
+    });
+</script>

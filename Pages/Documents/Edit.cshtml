@@ -1,0 +1,257 @@
+﻿@page
+@model DocuWareAdobeSignIntegration.Pages.DocumentsModel
+@using DocuWareAdobeSignIntegration.Helpers
+
+@{
+    ViewData["Title"] = "Documents";
+
+    // Folders are built from the current search results (category guessed from the document name)
+    var folderModel = DocumentCategorizer.BuildFolders(
+        Model.Documents.Select(d => (
+            DocumentCategorizer.Resolve(null, null, d.Name).Name,
+            (string?)null)),
+        "File cabinet");
+}
+
+<!-- PAGE HEADING -->
+
+<div class="section-heading">
+    <div>
+        <h2>DocuWare Documents</h2>
+        <p>Search and find documents stored in your DocuWare repository to prepare them for electronic signature.</p>
+    </div>
+</div>
+
+<!-- SEARCH -->
+
+<div class="content-panel mb-4">
+
+    <div class="mb-3">
+        <h5 class="panel-title mb-1">
+            <i class="bi bi-search me-2"></i>
+            Find a document
+        </h5>
+        <p class="small mb-0 text-muted">Search using a document name or document number.</p>
+    </div>
+
+    <form method="get" asp-page="/Documents">
+
+        <label for="Search" class="form-label">Document name or document number</label>
+
+        <div class="row g-2">
+
+            <div class="col-lg">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text"
+                           id="Search"
+                           name="Search"
+                           value="@Model.Search"
+                           class="form-control search-input"
+                           placeholder="e.g. Contract.pdf or 100245"
+                           required />
+                </div>
+            </div>
+
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary search-button">
+                    <i class="bi bi-search me-1"></i>
+                    Search DocuWare
+                </button>
+            </div>
+
+            <div class="col-auto">
+                <a asp-page="/Documents" class="clear-button">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Clear Search
+                </a>
+            </div>
+
+        </div>
+
+    </form>
+
+</div>
+
+<!-- ERROR -->
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        @Model.ErrorMessage
+    </div>
+}
+
+<!-- FOLDERS (below the search bar) -->
+
+<partial name="_FolderCabinet" model="folderModel" />
+
+<!-- RESULTS -->
+@if (!string.IsNullOrWhiteSpace(Model.Search))
+{
+    <div class="content-panel p-0 results-panel">
+
+        <div class="results-header">
+            <div>
+                <h5 class="panel-title mb-1">
+                    <i class="bi bi-list-ul me-2"></i>
+                    Search Results
+                </h5>
+                <small class="text-muted">Results for "@Model.Search"</small>
+            </div>
+
+            <span class="status-pill info">
+                <span id="visibleCount">@Model.TotalDocuments</span>&nbsp;matching documents
+            </span>
+        </div>
+
+        @if (Model.Documents.Count > 0)
+        {
+            <div class="table-responsive">
+
+                <table class="table table-hover documents-table">
+
+                    <thead>
+                        <tr>
+                            <th>Document ID</th>
+                            <th>Document name</th>
+                            <th>Category</th>
+                            <th>Recipient Name</th>
+                            <th>Recipient Email</th>
+                            <th>Date Created</th>
+                            <th>Last Modified</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var document in Model.Documents)
+                        {
+                            var category = DocumentCategorizer.Resolve(null, null, document.Name);
+
+                            <tr data-folder-item data-category="@category.Name">
+
+                                <td>
+                                    <span class="document-id">#@document.Id</span>
+                                </td>
+
+                                <td>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="document-file-icon">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                        </div>
+                                        <div class="document-file-name">@document.Name</div>
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <span class="document-category-badge category-@category.Css">@category.Name</span>
+                                </td>
+
+                                <td>
+                                    <span class="document-detail">
+                                        @(string.IsNullOrWhiteSpace(document.RecipientName) ? "Not available" : document.RecipientName)
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="document-detail">
+                                        @(string.IsNullOrWhiteSpace(document.RecipientEmail) ? "Not available" : document.RecipientEmail)
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="document-date">
+                                        <i class="bi bi-calendar3 me-1"></i>
+                                        @(document.RequestDate?.ToLocalTime().ToString("dd MMM yyyy") ?? "Not available")
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="document-date">
+                                        <i class="bi bi-clock me-1"></i>
+                                        @(document.LastModified?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Not available")
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <a asp-page="/Documents/Edit"
+                                       asp-route-id="@document.Id"
+                                       asp-route-returnSearch="@Model.Search"
+                                       class="btn btn-outline-primary btn-sm edit-button">
+                                        <i class="bi bi-pencil-square"></i>
+                                        Edit Details
+                                    </a>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+            <div id="folderEmpty" class="empty-state d-none">
+                <i class="bi bi-folder2-open"></i>
+                <h3>This folder is empty</h3>
+                <p>None of the search results are in this category.</p>
+            </div>
+
+            <div class="document-footer">
+                <i class="bi bi-info-circle me-1"></i>
+                Showing <span id="footerCount">@Model.Documents.Count</span> matching document(s).
+            </div>
+        }
+        else if (string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="empty-state">
+                <i class="bi bi-search"></i>
+                <h3>No matching documents found</h3>
+                <p>
+                    No documents matched your search for <strong>@Model.Search</strong>.
+                    Try another document name or document number.
+                </p>
+            </div>
+        }
+
+    </div>
+}
+else if (string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="content-panel p-0">
+        <div class="empty-state">
+            <i class="bi bi-folder2-open"></i>
+            <h3>Your document search starts here</h3>
+            <p>
+                Enter a document name or document number above.
+                Your matching DocuWare documents will appear in a table here.
+            </p>
+        </div>
+    </div>
+}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var empty = document.getElementById("folderEmpty");
+        var visibleCount = document.getElementById("visibleCount");
+        var footerCount = document.getElementById("footerCount");
+
+        document.querySelectorAll(".category-filter[data-category-filter]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                setTimeout(function () {
+                    var visible = Array.prototype.filter.call(
+                        document.querySelectorAll("[data-folder-item]"),
+                        function (el) { return el.style.display !== "none"; }
+                    ).length;
+
+                    if (visibleCount) { visibleCount.textContent = visible; }
+                    if (footerCount) { footerCount.textContent = visible; }
+                    if (empty) { empty.classList.toggle("d-none", visible > 0); }
+                }, 0);
+            });
+        });
+    });
+</script>
